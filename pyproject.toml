@@ -1,7 +1,7 @@
 [project]
-name = "x-twitter-api-v2-demo"
+name = "x-bot"
 version = "0.1.0"
-description = "A demo illustrating how to tweet via X's new Twitter v2 API using Python Flask"
+description = "An experiment in social media automation with LLMs and the Twitter/X API"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
