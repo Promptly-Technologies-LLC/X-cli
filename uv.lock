@@ -378,7 +378,7 @@ wheels = [
 ]
 
 [[package]]
-name = "x-twitter-api-v2-demo"
+name = "x-bot"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
