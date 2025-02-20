@@ -44,3 +44,60 @@ Next, create a new project and application from the developer dashboard. Then, f
 ### Getting an access token and secret
 
 You will also need to generate an access token and secret from your application's "Keys and Tokens" section in the developer dashboard. Save these to your `.env` file.
+
+## Usage
+
+Once you have configured your environment and obtained the necessary API credentials, you can use the CLI interface to generate and post tweets. The CLI provides several options to customize your tweet generation and posting process.
+
+### Command Line Interface (CLI) Options
+
+To run the bot, use the following command:
+
+```bash
+python main.py [options]
+```
+
+#### Options
+
+- `--prompt`: A custom prompt for tweet generation. If not provided, a default prompt will be used.
+  
+  Example:
+  ```bash
+  python main.py --prompt "Hello world!"
+  ```
+
+- `--n`: The number of tweets to generate and post. The default is 1.
+
+  Example:
+  ```bash
+  python main.py --n 3
+  ```
+
+- `--media`: The path to a media file to include in the tweet. This is optional.
+
+  Example:
+  ```bash
+  python main.py --media /path/to/image.jpg
+  ```
+
+#### Example Usage
+
+To generate and post a single tweet with a custom prompt:
+
+```bash
+python main.py --prompt "Exploring the world of AI and automation!"
+```
+
+To generate and post three tweets without a custom prompt:
+
+```bash
+python main.py --n 3
+```
+
+To post a tweet with an image:
+
+```bash
+python main.py --prompt "Check out this cool image!" --media /path/to/image.jpg
+```
+
+Ensure that your `.env` file is correctly set up with your API credentials before running these commands.
