@@ -54,6 +54,8 @@ def get_user_session(user_id: str) -> tuple[Optional[OAuth2Session], Optional[Di
     """Get a user's session and token."""
     token = load_token(user_id)
     if token:
+        # Add user ID to token for updater closure
+        token['user_id'] = user_id
         session = create_session_from_token(token)
         return session, token
     return None, None 

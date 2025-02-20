@@ -1,5 +1,6 @@
 import os
 import requests
+import argparse
 from dotenv import load_dotenv
 import base64
 from urllib.parse import urlencode, parse_qs
@@ -11,10 +12,12 @@ from x_bot.auth import (
     initialize_oauth_flow,
     exchange_code_for_token,
     refresh_token_if_needed,
-    create_oauth2_session
+    create_oauth2_session,
+    is_token_expired
 )
 from x_bot.tweet import post_tweet
-from x_bot.session import save_token
+from x_bot.session import save_token, load_token
+from x_bot.llm import get_llm_response
 
 load_dotenv()
 
@@ -153,61 +156,77 @@ def start_oauth_server() -> Tuple[str, Optional[str]]:
 
 # --- Updated Main Flow ---
 if __name__ == "__main__":
-    # 1. Initialize OAuth flow using auth.py helper
-    twitter_session, code_verifier, auth_url, state = initialize_oauth_flow()
-    print(f"Please visit this URL to authorize the app:\n{auth_url}")
+    user_id = "default_user"
+    
+    # 1. Try to load an existing token
+    token_response = load_token(user_id)
 
-    # 2. Start the HTTP server in a separate thread
-    auth_code, returned_state = start_oauth_server()
-    print("Authorization code received.")
-
-    # 3. Validate state
-    if returned_state != state:
-        raise Exception("State does not match")
-
-    # 4. Exchange authorization code for token using auth.py helper
-    try:
-        token_response = exchange_code_for_token(twitter_session, auth_code, code_verifier)
-        if not token_response:
-            raise Exception("Failed to obtain access token")
-            
-        # Create a proper session with the new token
+    # 2. If we already have a token, check if it's expired or about to expire
+    if token_response and not is_token_expired(token_response):
+        # (Optional) Attempt a refresh right away if you want to extend its life
         session = create_oauth2_session(token_response)
-        
-        # Check and refresh token if needed using auth.py helper
         new_token = refresh_token_if_needed(session, token_response)
         if new_token:
             token_response = new_token
-            
-        print("Successfully obtained access token.")
-    except requests.exceptions.RequestException as e:
-        print(f"Error obtaining access token: {e}")
-        exit()
+            save_token(user_id, token_response)
+        # At this point, token_response is valid and we can skip the auth flow
+        print("Using existing token. No need to re-authorize.")
+    else:
+        # 3. If no valid token is found, do the full authorization flow
+        twitter_session, code_verifier, auth_url, state = initialize_oauth_flow()
+        print(f"Please visit this URL to authorize the app:\n{auth_url}")
 
-    # After obtaining the token_response
-    user_id = "default_user"  # In real app, get from user system
-    save_token(user_id, token_response)
-    
-    # When loading token (for subsequent runs)
-    # token_response = load_token(user_id)
+        # Start the HTTP server to handle the callback
+        auth_code, returned_state = start_oauth_server()
 
-    # 6. Prompt user for tweet text and media path
-    tweet_text = input("Enter your tweet message: ")
-    media_path = input("Enter the path to your media file (or leave empty for no media): ").strip() or None
+        # Validate state
+        if returned_state != state:
+            raise Exception("State mismatch!")
 
-    # 7. Post the tweet using the unified function
-    try:
-        # Use media.py helper instead of direct media upload
-        success, message = post_tweet(
-            text=tweet_text,
-            media_path=media_path,
-            new_token=token_response
-        )
+        # Exchange code for token
+        token_response = exchange_code_for_token(twitter_session, auth_code, code_verifier)
+        if not token_response:
+            raise Exception("Failed to obtain access token")
         
-        if success:
-            print(f"✅ Success: {message}")
-        else:
-            print(f"❌ Error: {message}")
+        # Attempt a refresh right away (optional)
+        session = create_oauth2_session(token_response)
+        new_token = refresh_token_if_needed(session, token_response)
+        if new_token:
+            token_response = new_token
+        
+        # Save the newly obtained (and possibly refreshed) token
+        save_token(user_id, token_response)
+        print("Successfully obtained and saved new access token.")
+
+    # 4. Now token_response is guaranteed valid; parse args and post tweets
+    parser = argparse.ArgumentParser(description="X Bot Tweet Generator")
+    parser.add_argument('--prompt', type=str, help='Custom prompt for tweet generation (optional)')
+    parser.add_argument('--n', type=int, default=1, help='Number of tweets to generate and post (default: 1)')
+    parser.add_argument('--media', type=str, help='Path to media file (optional)')
+    args = parser.parse_args()
+
+    # Validate n parameter
+    if args.n < 1:
+        print("Error: Number of tweets must be at least 1")
+        exit(1)
+
+    # 5. Generate and post tweets
+    for i in range(args.n):
+        try:
+            # Generate tweet text using LLM
+            tweet_text = get_llm_response(args.prompt) if args.prompt else get_llm_response()
             
-    except Exception as e:
-        print(f"❌ Unexpected error: {str(e)}")
+            # Post the tweet
+            success, message = post_tweet(
+                text=tweet_text,
+                media_path=args.media,
+                new_token=token_response
+            )
+            
+            if success:
+                print(f"✅ Successfully posted tweet {i+1}/{args.n}: {message}")
+            else:
+                print(f"❌ Failed to post tweet {i+1}/{args.n}: {message}")
+                
+        except Exception as e:
+            print(f"❌ Error generating/posting tweet {i+1}/{args.n}: {str(e)}")

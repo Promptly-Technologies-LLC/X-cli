@@ -37,8 +37,8 @@ def is_token_expired(token: Dict[str, Any]) -> bool:
     if not token or 'expires_at' not in token:
         return True
     
-    # Add 5 minute buffer
-    return token['expires_at'] <= time.time() + 300
+    # Corrected expiration check with 5 minute buffer
+    return token['expires_at'] <= time.time() - 300
 
 def create_oauth2_session(token: Optional[Dict[str, Any]] = None) -> OAuth2Session:
     """
@@ -49,12 +49,12 @@ def create_oauth2_session(token: Optional[Dict[str, Any]] = None) -> OAuth2Sessi
     client_secret = os.environ.get("X_CLIENT_SECRET")
     redirect_uri = os.environ.get("X_REDIRECT_URI")
 
-    def token_updater(token: Dict[str, Any]) -> None:
+    def token_updater(new_token: Dict[str, Any]) -> None:
         """Callback to save refreshed token."""
-        from x_bot.session import save_session
-        # Note: We need to get the current session from the app context
-        # This is a bit of a hack, but it works for our simple case
-        save_session(session, token)  # type: ignore # session is defined after this function
+        from x_bot.session import save_token
+        # Get user ID from the original token
+        if token and 'user_id' in token:
+            save_token(user_id=token['user_id'], token=new_token)
 
     session = OAuth2Session(
         client_id=client_id,
