@@ -6,7 +6,6 @@ import secrets
 import time
 from typing import Dict, Any, Optional
 from requests_oauthlib import OAuth1, OAuth2Session
-from oauthlib.oauth2.rfc6749.errors import TokenExpiredError
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,7 @@ def is_token_expired(token: Dict[str, Any]) -> bool:
         return True
     
     # Corrected expiration check with 5 minute buffer
-    return token['expires_at'] <= time.time() - 300
+    return token['expires_at'] <= time.time() + 300
 
 def create_oauth2_session(token: Optional[Dict[str, Any]] = None) -> OAuth2Session:
     """
@@ -72,24 +71,28 @@ def create_oauth2_session(token: Optional[Dict[str, Any]] = None) -> OAuth2Sessi
     return session
 
 def refresh_token_if_needed(session: OAuth2Session, token: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    Check if token needs refresh and refresh it if needed.
-    Returns the new token if refreshed, None if refresh failed.
-    """
+    """Refresh the token if it's expired or about to expire."""
     try:
+        # Check if the token is expired or about to expire
         if is_token_expired(token):
-            logger.info("Token is expired or about to expire, attempting refresh")
+            print("Debug: Token is expired or about to expire, attempting refresh.")
+            extra = {
+                'client_id': os.environ.get("X_CLIENT_ID"),
+                'client_secret': os.environ.get("X_CLIENT_SECRET"),
+            }
             new_token = session.refresh_token(
                 "https://api.x.com/2/oauth2/token",
-                client_id=os.environ.get("X_CLIENT_ID"),
-                client_secret=os.environ.get("X_CLIENT_SECRET")
+                refresh_token=token['refresh_token'],
+                **extra
             )
+            print("Debug: Token successfully refreshed:", new_token)
             return new_token
-    except TokenExpiredError:
-        logger.warning("Token expired and refresh failed")
+        else:
+            print("Debug: Token is still valid, no refresh needed.")
+            return token
     except Exception as e:
-        logger.error("Error refreshing token: %s", str(e))
-    return None
+        
+        return None
 
 def initialize_oauth_flow() -> tuple[OAuth2Session, str, str]:
     """

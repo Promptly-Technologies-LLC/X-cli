@@ -85,19 +85,19 @@ python main.py [options]
 To generate and post a single tweet with a custom prompt:
 
 ```bash
-python main.py --prompt "Exploring the world of AI and automation!"
+uv run python main.py --prompt "Exploring the world of AI and automation!"
 ```
 
 To generate and post three tweets without a custom prompt:
 
 ```bash
-python main.py --n 3
+uv run python main.py --n 3
 ```
 
 To post a tweet with an image:
 
 ```bash
-python main.py --prompt "Check out this cool image!" --media /path/to/image.jpg
+uv run python main.py --prompt "Check out this cool image!" --media /path/to/image.jpg
 ```
 
 Ensure that your `.env` file is correctly set up with your API credentials before running these commands.

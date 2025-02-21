@@ -169,34 +169,36 @@ if __name__ == "__main__":
         if new_token:
             token_response = new_token
             save_token(user_id, token_response)
-        # At this point, token_response is valid and we can skip the auth flow
-        print("Using existing token. No need to re-authorize.")
+        else:
+            # If refresh failed, force re-authorization
+            token_response = None
     else:
         # 3. If no valid token is found, do the full authorization flow
-        twitter_session, code_verifier, auth_url, state = initialize_oauth_flow()
-        print(f"Please visit this URL to authorize the app:\n{auth_url}")
-
-        # Start the HTTP server to handle the callback
-        auth_code, returned_state = start_oauth_server()
-
-        # Validate state
-        if returned_state != state:
-            raise Exception("State mismatch!")
-
-        # Exchange code for token
-        token_response = exchange_code_for_token(twitter_session, auth_code, code_verifier)
         if not token_response:
-            raise Exception("Failed to obtain access token")
-        
-        # Attempt a refresh right away (optional)
-        session = create_oauth2_session(token_response)
-        new_token = refresh_token_if_needed(session, token_response)
-        if new_token:
-            token_response = new_token
-        
-        # Save the newly obtained (and possibly refreshed) token
-        save_token(user_id, token_response)
-        print("Successfully obtained and saved new access token.")
+            twitter_session, code_verifier, auth_url, state = initialize_oauth_flow()
+            print(f"Please visit this URL to authorize the app:\n{auth_url}")
+
+            # Start the HTTP server to handle the callback
+            auth_code, returned_state = start_oauth_server()
+
+            # Validate state
+            if returned_state != state:
+                raise Exception("State mismatch!")
+
+            # Exchange code for token
+            token_response = exchange_code_for_token(twitter_session, auth_code, code_verifier)
+            if not token_response:
+                raise Exception("Failed to obtain access token")
+            
+            # Attempt a refresh right away (optional)
+            session = create_oauth2_session(token_response)
+            new_token = refresh_token_if_needed(session, token_response)
+            if new_token:
+                token_response = new_token
+            
+            # Save the newly obtained (and possibly refreshed) token
+            save_token(user_id, token_response)
+            print("Successfully obtained and saved new access token.")
 
     # 4. Now token_response is guaranteed valid; parse args and post tweets
     parser = argparse.ArgumentParser(description="X Bot Tweet Generator")
