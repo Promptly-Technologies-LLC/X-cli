@@ -1,12 +1,10 @@
 import os
 import logging
 import requests
-from dotenv import load_dotenv
 from typing import Optional, Dict, Any, Tuple
 from .media import create_media_payload
 from .auth import create_oauth1_auth
-
-load_dotenv()
+from .config import get_credential
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +27,10 @@ def create_tweet_payload(text: str, media_path: str | None = None) -> dict:
 
 def construct_tweet_link(tweet_id: str) -> str:
     """Construct the tweet link from the username and tweet ID."""
-    return f"https://x.com/{os.getenv("X_USERNAME")}/status/{tweet_id}"
+    username = get_credential("X_USERNAME")
+    if not username:
+        return f"https://x.com/status/{tweet_id}"
+    return f"https://x.com/{username}/status/{tweet_id}"
 
 
 def handle_tweet_response(response: requests.Response) -> tuple[bool, str]:

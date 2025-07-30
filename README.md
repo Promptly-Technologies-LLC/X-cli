@@ -1,6 +1,6 @@
 # X CLI
 
-A command-line tool for generating and posting tweets using LLMs and the Twitter/X API.
+A command-line tool for posting tweets to Twitter/X from the command line.
 
 ## Setup
 
@@ -18,64 +18,95 @@ uv --version
 
 Consult the [uv installation docs](https://astral.sh/uv/) for more detailed instructions and troubleshooting.
 
+## Installation
+
+### Local Development
+
+Clone the repository and run directly with uv:
+
+```bash
+git clone https://github.com/Promptly-Technologies-LLC/X-cli.git
+cd X-cli
+uv run main.py --help
+```
+
+### Global Installation
+
+You can install the CLI tool globally using uv:
+
+```bash
+uv tool install -U git+https://github.com/Promptly-Technologies-LLC/X-cli.git
+```
+
+This will install the `x-cli` command globally. After installation, you can use:
+
+```bash
+x-cli config
+x-cli tweet --text "Hello world!"
+```
+
 ## Configuration
 
-### Getting an API key and secret
+### Getting Twitter API Credentials
 
-Before you can run the app, you need to configure your Twitter API credentials. To do this, you need to [sign up for a Twitter/X developer account](https://developer.twitter.com/).
+Before you can use the CLI, you need to configure your Twitter API credentials. To do this, you need to [sign up for a Twitter/X developer account](https://developer.twitter.com/).
 
-In the dashboard, you will need to create an application. Make sure your application has "Read and Write" permissions. From your application's "Keys and Tokens" section in the developer dashboard, generate an api key, api secret, access token, and access token secret. Save these credentials to your `.env` file.
+In the dashboard, you will need to create an application. Make sure your application has "Read and Write" permissions. From your application's "Keys and Tokens" section in the developer dashboard, generate:
+
+- API Key
+- API Secret  
+- Access Token
+- Access Token Secret
+
+### Setting Up Credentials
+
+Run the configuration command to set up your credentials:
+
+```bash
+x-cli config
+```
+
+This will prompt you for your Twitter API credentials and store them securely in `~/.config/x-cli/config.json`.
+
+To view your current configuration (without showing secrets):
+
+```bash
+x-cli config --show
+```
 
 ## Usage
 
-Once you have configured your environment and obtained the necessary API credentials, you can use the CLI to post or generate tweets.
+### Posting Tweets
 
-### Installation
-
-After setting up dependencies, you can install the CLI tool:
+To post a tweet:
 
 ```bash
-uv tool install git+https://github.com/Promptly-Technologies-LLC/X_cli.git
+x-cli tweet --text "Your tweet content here"
 ```
 
-This will install the `x-cli` command globally.
-
-### Command Line Options
-
-To run the CLI, use:
+To post a tweet with media:
 
 ```bash
-x-cli [options]
+x-cli tweet --text "Check out this image!" --media /path/to/image.jpg
 ```
 
-#### Options
-
-- `--text`: The text of the tweet to post.
-  
-  Example:
-  ```bash
-  x-cli --text "Hello world!"
-  ```
-
-- `--media`: The path to a media file to include in the tweet. This is optional.
-
-  Example:
-  ```bash
-  x-cli --media /path/to/image.jpg
-  ```
-
-#### Example Usage
-
-To post a single tweet:
+To post a media-only tweet (no text):
 
 ```bash
-x-cli --text "I'm tweeiting this from the command-line!"
+x-cli tweet --media /path/to/image.jpg
 ```
 
-To post a tweet with an image:
+### Help
+
+To see all available commands:
 
 ```bash
-x-cli --text "Check out this cool image!" --media /path/to/image.jpg
+x-cli --help
 ```
 
-Ensure that your `.env` file is correctly set up with your API credentials before running these commands.
+To see help for a specific command:
+
+```bash
+x-cli tweet --help
+x-cli config --help
+```
