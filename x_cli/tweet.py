@@ -4,6 +4,7 @@ import requests
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any, Tuple
 from .media import create_media_payload
+from .auth import create_oauth1_auth
 
 load_dotenv()
 
@@ -13,11 +14,18 @@ def create_text_payload(text: str) -> dict[str, str]:
     return {"text": text}
 
 def create_tweet_payload(text: str, media_path: str | None = None) -> dict:
-    text_payload = create_text_payload(text=text)
-    if media_path is None:
-        return text_payload
-    media_payload = create_media_payload(path=media_path)
-    return {**text_payload, **media_payload}
+    payload = {}
+    
+    # Add text if provided and not empty
+    if text and text.strip():
+        payload.update(create_text_payload(text=text))
+    
+    # Add media if provided
+    if media_path:
+        media_payload = create_media_payload(path=media_path)
+        payload.update(media_payload)
+    
+    return payload
 
 def construct_tweet_link(tweet_id: str) -> str:
     """Construct the tweet link from the username and tweet ID."""
@@ -58,34 +66,32 @@ def handle_tweet_response(response: requests.Response) -> tuple[bool, str]:
     logger.error("Failed to post tweet: %s", error_msg)
     return False, f"Failed to post tweet: {error_msg}"
 
-def submit_tweet(text: str, media_path: str | None = None, new_token: Dict[str, Any] | None = None) -> requests.Response:
+def submit_tweet(text: str, media_path: str | None = None) -> requests.Response:
     """
-    Post a tweet with optional media.
+    Post a tweet with optional media using OAuth1 authentication.
     Returns the raw response object.
     """
-    if not new_token:
-        raise ValueError("Token is required")
-        
     tweet_payload = create_tweet_payload(text=text, media_path=media_path)
     logger.info(f"Posting tweet with payload: {tweet_payload}")
     
+    auth = create_oauth1_auth()
     return requests.request(
         method="POST",
         url="https://api.x.com/2/tweets",
         json=tweet_payload,
+        auth=auth,
         headers={
-            "Authorization": f"Bearer {new_token['access_token']}",
             "Content-Type": "application/json",
         },
     )
 
-def post_tweet(text: str, media_path: str | None = None, new_token: Dict[str, Any] | None = None) -> tuple[bool, str]:
+def post_tweet(text: str, media_path: str | None = None) -> tuple[bool, str]:
     """
-    Post a tweet with optional media.
+    Post a tweet with optional media using OAuth1 authentication.
     Returns (success, message) tuple.
     """
     try:
-        response = submit_tweet(text=text, media_path=media_path, new_token=new_token)
+        response = submit_tweet(text=text, media_path=media_path)
         return handle_tweet_response(response)
     except Exception as e:
         logger.error("Error posting tweet: %s", str(e))

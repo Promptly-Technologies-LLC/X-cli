@@ -1,6 +1,6 @@
-# Twitter/X Bot
+# X CLI
 
-Goal: experiment with social media automation to explore business and marketing opportunities for Promptly Technologies in this space.
+A command-line tool for generating and posting tweets using LLMs and the Twitter/X API.
 
 ## Setup
 
@@ -18,86 +18,64 @@ uv --version
 
 Consult the [uv installation docs](https://astral.sh/uv/) for more detailed instructions and troubleshooting.
 
-Once uv is installed on your system, clone this repo with:
-
-```bash
-git clone https://github.com/Promptly-Technologies-LLC/X_bot
-```
-
-Then:
-
-1. Navigate to the cloned directory with `cd X_bot`.
-2. Install dependencies with `uv sync`.
-3. Copy the `example.env` file to `.env` with `cp example.env .env`.
-4. Edit the `.env` file and add your API key, API secret, client token, client secret, access token, and access secret (for instructions on how to get these, see below).
-
 ## Configuration
 
 ### Getting an API key and secret
 
-Before you can run the app, you need to configure your Twitter API credentials. To do this, you need to [sign up for a Twitter/X developer account](https://developer.twitter.com/). Upon creating your account, you will receive an API key and an API secret. Save these in your `.env` file. 
+Before you can run the app, you need to configure your Twitter API credentials. To do this, you need to [sign up for a Twitter/X developer account](https://developer.twitter.com/).
 
-### Getting a client token and secret
-
-Next, create a new project and application from the developer dashboard. Then, from the application settings, do your user authentication setup. Give your application "Read and Write" permissions, classify it as a "Web App", and set the Callback URI to "http://127.0.0.1:5000/oauth/callback". Enter any URL you like for the required "Website" field; this won't affect our application. Upon saving these settings, you will be provided a client token and secret, which you should save to your `.env` file.
-
-### Getting an access token and secret
-
-You will also need to generate an access token and secret from your application's "Keys and Tokens" section in the developer dashboard. Save these to your `.env` file.
+In the dashboard, you will need to create an application. Make sure your application has "Read and Write" permissions. From your application's "Keys and Tokens" section in the developer dashboard, generate an api key, api secret, access token, and access token secret. Save these credentials to your `.env` file.
 
 ## Usage
 
-Once you have configured your environment and obtained the necessary API credentials, you can use the CLI interface to generate and post tweets. The CLI provides several options to customize your tweet generation and posting process.
+Once you have configured your environment and obtained the necessary API credentials, you can use the CLI to post or generate tweets.
 
-### Command Line Interface (CLI) Options
+### Installation
 
-To run the bot, use the following command:
+After setting up dependencies, you can install the CLI tool:
 
 ```bash
-python main.py [options]
+uv tool install git+https://github.com/Promptly-Technologies-LLC/X_cli.git
+```
+
+This will install the `x-cli` command globally.
+
+### Command Line Options
+
+To run the CLI, use:
+
+```bash
+x-cli [options]
 ```
 
 #### Options
 
-- `--prompt`: A custom prompt for tweet generation. If not provided, a default prompt will be used.
+- `--text`: The text of the tweet to post.
   
   Example:
   ```bash
-  python main.py --prompt "Hello world!"
-  ```
-
-- `--n`: The number of tweets to generate and post. The default is 1.
-
-  Example:
-  ```bash
-  python main.py --n 3
+  x-cli --text "Hello world!"
   ```
 
 - `--media`: The path to a media file to include in the tweet. This is optional.
 
   Example:
   ```bash
-  python main.py --media /path/to/image.jpg
+  x-cli --media /path/to/image.jpg
   ```
 
 #### Example Usage
 
-To generate and post a single tweet with a custom prompt:
+To post a single tweet:
 
 ```bash
-uv run python main.py --prompt "Exploring the world of AI and automation!"
-```
-
-To generate and post three tweets without a custom prompt:
-
-```bash
-uv run python main.py --n 3
+x-cli --text "I'm tweeiting this from the command-line!"
 ```
 
 To post a tweet with an image:
 
 ```bash
-uv run python main.py --prompt "Check out this cool image!" --media /path/to/image.jpg
+x-cli --text "Check out this cool image!" --media /path/to/image.jpg
 ```
 
 Ensure that your `.env` file is correctly set up with your API credentials before running these commands.
