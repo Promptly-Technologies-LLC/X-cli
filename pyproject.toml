@@ -15,4 +15,4 @@ dependencies = [
 ]
 
 [project.scripts]
-x-cli = "main:main"
+x-cli = "x_cli.main:main"

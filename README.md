@@ -27,7 +27,7 @@ Clone the repository and run directly with uv:
 ```bash
 git clone https://github.com/Promptly-Technologies-LLC/X-cli.git
 cd X-cli
-uv run main.py --help
+uv run -m x_cli.main --help
 ```
 
 ### Global Installation

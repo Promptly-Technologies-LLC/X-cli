@@ -1,8 +1,8 @@
 import os
 import argparse
-from x_cli.auth import create_oauth1_auth
-from x_cli.tweet import post_tweet
-from x_cli.config import prompt_for_credentials, show_config
+from .auth import create_oauth1_auth
+from .tweet import post_tweet
+from .config import prompt_for_credentials, show_config
 
 def main():
     """Main CLI entry point"""
