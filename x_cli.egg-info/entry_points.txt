@@ -1,0 +1,2 @@
+[console_scripts]
+x-cli = x_cli.main:main

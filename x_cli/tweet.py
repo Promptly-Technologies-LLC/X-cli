@@ -97,3 +97,52 @@ def post_tweet(text: str, media_path: str | None = None) -> tuple[bool, str]:
     except Exception as e:
         logger.error("Error posting tweet: %s", str(e))
         return False, f"Error posting tweet: {str(e)}"
+
+def get_tweets_by_ids(tweet_ids: list[str]) -> tuple[bool, str | dict]:
+    """
+    Retrieve tweets by their IDs using the X API.
+    Returns (success, result) tuple where result is either error message or tweet data.
+    """
+    if not tweet_ids:
+        return False, "No tweet IDs provided"
+    
+    if len(tweet_ids) > 100:
+        return False, "Too many tweet IDs provided (maximum 100)"
+    
+    try:
+        auth = create_oauth1_auth()
+        ids_param = ",".join(tweet_ids)
+        
+        response = requests.get(
+            url="https://api.x.com/2/tweets",
+            params={
+                "ids": ids_param,
+                "tweet.fields": "created_at,author_id,public_metrics,context_annotations,lang,possibly_sensitive",
+                "expansions": "author_id",
+                "user.fields": "name,username,verified,public_metrics"
+            },
+            auth=auth
+        )
+        
+        if response.ok:
+            data = response.json()
+            logger.info("Successfully retrieved tweets")
+            return True, data
+        else:
+            try:
+                error_details = response.json()
+                if 'errors' in error_details:
+                    error_messages = [error['detail'] for error in error_details['errors']]
+                    error_msg = '; '.join(error_messages)
+                else:
+                    error_msg = f"Error ({response.status_code}): {response.reason}"
+                logger.error("Failed to retrieve tweets: %s", error_msg)
+                return False, error_msg
+            except ValueError:
+                error_msg = f"Error ({response.status_code}): {response.reason}"
+                logger.error("Failed to parse error response: %s", response.text)
+                return False, error_msg
+                
+    except Exception as e:
+        logger.error("Error retrieving tweets: %s", str(e))
+        return False, f"Error retrieving tweets: {str(e)}"

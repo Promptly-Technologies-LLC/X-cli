@@ -1,3 +1,19 @@
+Metadata-Version: 2.4
+Name: x-cli
+Version: 0.1.0
+Summary: A CLI tool for generating and posting tweets using LLMs and the Twitter/X API
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: requests-oauthlib>=1.3.1
+Requires-Dist: requests>=2.32.3
+Requires-Dist: mypy>=1.14.1
+Requires-Dist: types-requests>=2.32.0.20241016
+Requires-Dist: litellm>=1.61.11
+Requires-Dist: wonderwords>=2.2.0
+Dynamic: license-file
+
 # X CLI
 
 A command-line tool for posting tweets to Twitter/X from the command line.
@@ -96,16 +112,6 @@ To post a media-only tweet (no text):
 x-cli tweet --media /path/to/image.jpg
 ```
 
-### Getting Tweets
-
-To retrieve tweets by ID:
-
-```bash
-x-cli get 1234567890
-x-cli get 1234567890 9876543210 --format detailed
-x-cli get 1234567890 --json
-```
-
 ### Help
 
 To see all available commands:
@@ -119,5 +125,4 @@ To see help for a specific command:
 ```bash
 x-cli tweet --help
 x-cli config --help
-x-cli get --help
 ```
