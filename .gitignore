@@ -5,3 +5,4 @@ temp/
 sessions/
 .specstory
 *.jpg
+*.egg-info/
