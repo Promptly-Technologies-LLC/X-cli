@@ -101,19 +101,19 @@ x-cli tweet --media /path/to/image.jpg
 To reply to a tweet using its ID:
 
 ```bash
-x-cli tweet --text "Great point!" --reply_to 1234567890
+x-cli tweet --text "Great point!" --reply-to 1234567890
 ```
 
 To reply to a tweet using its URL:
 
 ```bash
-x-cli tweet --text "I agree!" --reply_to "https://x.com/user/status/1234567890"
+x-cli tweet --text "I agree!" --reply-to "https://x.com/user/status/1234567890"
 ```
 
 You can also include media in replies:
 
 ```bash
-x-cli tweet --text "Here's my response" --media /path/to/image.jpg --reply_to 1234567890
+x-cli tweet --text "Here's my response" --media /path/to/image.jpg --reply-to 1234567890
 ```
 
 ### Getting Tweets

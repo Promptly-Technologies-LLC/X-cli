@@ -18,7 +18,7 @@ def main():
     tweet_parser = subparsers.add_parser('tweet', help='Post a tweet')
     tweet_parser.add_argument('--text', type=str, help='Tweet text to post (optional if media provided)', default="")
     tweet_parser.add_argument('--media', type=str, help='Path to media file (optional)')
-    tweet_parser.add_argument('--reply_to', type=str, help='Tweet ID or URL to reply to (optional)')
+    tweet_parser.add_argument('--reply-to', dest='reply_to', type=str, help='Tweet ID or URL to reply to (optional)')
     
     # Get tweets subcommand
     get_parser = subparsers.add_parser('get', help='Get tweets by ID')
