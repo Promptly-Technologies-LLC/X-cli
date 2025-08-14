@@ -5,13 +5,14 @@ from typing import Optional, Dict, Any, Tuple
 from .media import create_media_payload
 from .auth import create_oauth1_auth
 from .config import get_credential
+from .utils import extract_tweet_id
 
 logger = logging.getLogger(__name__)
 
 def create_text_payload(text: str) -> dict[str, str]:
     return {"text": text}
 
-def create_tweet_payload(text: str, media_path: str | None = None) -> dict:
+def create_tweet_payload(text: str, media_path: str | None = None, reply_to: str | None = None) -> dict:
     payload = {}
     
     # Add text if provided and not empty
@@ -22,6 +23,13 @@ def create_tweet_payload(text: str, media_path: str | None = None) -> dict:
     if media_path:
         media_payload = create_media_payload(path=media_path)
         payload.update(media_payload)
+    
+    # Add reply parameters if provided
+    if reply_to:
+        tweet_id = extract_tweet_id(reply_to)
+        payload["reply"] = {
+            "in_reply_to_tweet_id": tweet_id
+        }
     
     return payload
 
@@ -67,12 +75,12 @@ def handle_tweet_response(response: requests.Response) -> tuple[bool, str]:
     logger.error("Failed to post tweet: %s", error_msg)
     return False, f"Failed to post tweet: {error_msg}"
 
-def submit_tweet(text: str, media_path: str | None = None) -> requests.Response:
+def submit_tweet(text: str, media_path: str | None = None, reply_to: str | None = None) -> requests.Response:
     """
-    Post a tweet with optional media using OAuth1 authentication.
+    Post a tweet with optional media and reply using OAuth1 authentication.
     Returns the raw response object.
     """
-    tweet_payload = create_tweet_payload(text=text, media_path=media_path)
+    tweet_payload = create_tweet_payload(text=text, media_path=media_path, reply_to=reply_to)
     logger.info(f"Posting tweet with payload: {tweet_payload}")
     
     auth = create_oauth1_auth()
@@ -86,13 +94,13 @@ def submit_tweet(text: str, media_path: str | None = None) -> requests.Response:
         },
     )
 
-def post_tweet(text: str, media_path: str | None = None) -> tuple[bool, str]:
+def post_tweet(text: str, media_path: str | None = None, reply_to: str | None = None) -> tuple[bool, str]:
     """
-    Post a tweet with optional media using OAuth1 authentication.
+    Post a tweet with optional media and reply using OAuth1 authentication.
     Returns (success, message) tuple.
     """
     try:
-        response = submit_tweet(text=text, media_path=media_path)
+        response = submit_tweet(text=text, media_path=media_path, reply_to=reply_to)
         return handle_tweet_response(response)
     except Exception as e:
         logger.error("Error posting tweet: %s", str(e))
