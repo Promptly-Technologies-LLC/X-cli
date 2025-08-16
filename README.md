@@ -20,25 +20,13 @@ Consult the [uv installation docs](https://astral.sh/uv/) for more detailed inst
 
 ## Installation
 
-### Local Development
-
-Clone the repository and run directly with uv:
-
-```bash
-git clone https://github.com/Promptly-Technologies-LLC/X-cli.git
-cd X-cli
-uv run -m x_cli.main --help
-```
-
-### Global Installation
-
 You can install the CLI tool globally using uv:
 
 ```bash
 uv tool install -U git+https://github.com/Promptly-Technologies-LLC/X-cli.git
 ```
 
-This will install the `x-cli` command globally. After installation, you can use:
+After installation, you can use:
 
 ```bash
 x-cli config
