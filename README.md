@@ -118,12 +118,23 @@ x-cli tweet --text "Here's my response" --media /path/to/image.jpg --reply-to 12
 
 ### Getting Tweets
 
-To retrieve tweets by ID:
+To retrieve tweets by ID (up to 100 at a time):
 
 ```bash
 x-cli get 1234567890
 x-cli get 1234567890 9876543210 --format detailed
 x-cli get 1234567890 --json
+```
+
+### Looking Up Users
+
+To look up users by username or ID (up to 100 at a time):
+
+```bash
+x-cli user elonmusk
+x-cli user @nasa @spacex
+x-cli user 44196397 --by-id
+x-cli user elonmusk --format detailed --fields public_metrics created_at
 ```
 
 ### Help
@@ -140,4 +151,5 @@ To see help for a specific command:
 x-cli tweet --help
 x-cli config --help
 x-cli get --help
+x-cli user --help
 ```

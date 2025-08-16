@@ -1,7 +1,5 @@
-import os
 import logging
 import requests
-from typing import Optional, Dict, Any, Tuple
 from .media import create_media_payload
 from .auth import create_oauth1_auth
 from .config import get_credential
