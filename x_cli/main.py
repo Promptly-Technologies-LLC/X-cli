@@ -1,7 +1,5 @@
-import os
 import argparse
 import json
-from .auth import create_oauth1_auth
 from .tweet import post_tweet, get_tweets_by_ids
 from .config import prompt_for_credentials, show_config
 from .user import (
@@ -94,7 +92,10 @@ def main():
                 if args.json:
                     print(json.dumps(result, indent=2))
                 else:
-                    format_tweets_output(result, args.format)
+                    if isinstance(result, dict):
+                        format_tweets_output(result, args.format)
+                    else:
+                        print(f"❌ Failed to get tweets: {result}")
             else:
                 print(f"❌ Failed to get tweets: {result}")
                 
@@ -156,7 +157,10 @@ def main():
                 if args.json:
                     print(json.dumps(result, indent=2))
                 else:
-                    format_users_output(result, args.format)
+                    if isinstance(result, dict):
+                        format_users_output(result, args.format)
+                    else:
+                        print(f"❌ Failed to get user(s): {result}")
             else:
                 print(f"❌ Failed to get user(s): {result}")
                 
@@ -260,7 +264,7 @@ def format_users_output(data: dict, format_type: str):
             print("-" * 50)
             
         else:  # full
-            print(f"=== User Profile ===")
+            print("=== User Profile ===")
             print(f"User ID: {user['id']}")
             print(f"Username: @{user['username']}")
             print(f"Name: {user['name']}")
@@ -284,7 +288,7 @@ def format_users_output(data: dict, format_type: str):
                 print(f"Banner image: {user['profile_banner_url']}")
             
             if 'public_metrics' in user:
-                print(f"\n=== Metrics ===")
+                print("\n=== Metrics ===")
                 metrics = user['public_metrics']
                 print(f"Followers: {metrics.get('followers_count', 0):,}")
                 print(f"Following: {metrics.get('following_count', 0):,}")
@@ -301,13 +305,13 @@ def format_users_output(data: dict, format_type: str):
                 status_items.append("🆔 Identity Verified")
             
             if status_items:
-                print(f"\n=== Account Status ===")
+                print("\n=== Account Status ===")
                 print(" | ".join(status_items))
             
             # Show pinned tweet if expanded
             if 'pinned_tweet_id' in user and user['pinned_tweet_id'] in tweets:
                 pinned = tweets[user['pinned_tweet_id']]
-                print(f"\n=== Pinned Tweet ===")
+                print("\n=== Pinned Tweet ===")
                 print(f"ID: {pinned['id']}")
                 print(f"Text: {pinned['text']}")
                 if 'created_at' in pinned:
@@ -316,7 +320,7 @@ def format_users_output(data: dict, format_type: str):
             # Show most recent tweet if expanded
             if 'most_recent_tweet_id' in user and user['most_recent_tweet_id'] in tweets:
                 recent = tweets[user['most_recent_tweet_id']]
-                print(f"\n=== Most Recent Tweet ===")
+                print("\n=== Most Recent Tweet ===")
                 print(f"ID: {recent['id']}")
                 print(f"Text: {recent['text']}")
                 if 'created_at' in recent:

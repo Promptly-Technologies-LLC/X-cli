@@ -1,5 +1,3 @@
-import os
-import json
 import requests
 from typing import List, Optional, Union, Tuple, Dict, Any
 from .auth import create_oauth1_auth
