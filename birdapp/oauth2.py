@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import requests
 
-from .config import get_credential
+from .config import ensure_profile, get_active_profile, get_credential
 
 OAUTH2_AUTHORIZE_URL = "https://x.com/i/oauth2/authorize"
 OAUTH2_TOKEN_URL = "https://api.x.com/2/oauth2/token"
@@ -120,7 +120,14 @@ def exchange_code_for_token(
 
     response = requests.post(OAUTH2_TOKEN_URL, headers=headers, data=data, timeout=30)
     if not response.ok:
-        raise RuntimeError(f"OAuth2 token exchange failed: {response.status_code} {response.text}")
+        message = f"OAuth2 token exchange failed: {response.status_code} {response.text}"
+        if response.status_code == 401 and "Missing valid authorization header" in response.text:
+            message = (
+                "OAuth2 token exchange failed: 401 Missing valid authorization header. "
+                "If your app is registered as a confidential client, you must set "
+                "X_OAUTH2_CLIENT_SECRET during `birdapp auth config --oauth2`."
+            )
+        raise RuntimeError(message)
 
     token = response.json()
     if "access_token" not in token or "token_type" not in token:
@@ -191,14 +198,14 @@ def write_oauth2_fixtures(
     with open(user_path, "w") as f:
         json.dump(user_payload, f, indent=2)
 
-def oauth2_login_flow(record_fixtures: bool = False) -> dict[str, Any]:
+def oauth2_login_flow(record_fixtures: bool = False, profile: str | None = None) -> dict[str, Any]:
     """Run the OAuth2 login flow and return the /2/users/me payload."""
     from .session import save_token
 
-    client_id = os.getenv("X_OAUTH2_CLIENT_ID") or get_credential("X_OAUTH2_CLIENT_ID")
-    redirect_uri = os.getenv("X_OAUTH2_REDIRECT_URI") or get_credential("X_OAUTH2_REDIRECT_URI")
-    raw_scopes = os.getenv("X_OAUTH2_SCOPES") or get_credential("X_OAUTH2_SCOPES")
-    client_secret = os.getenv("X_OAUTH2_CLIENT_SECRET") or get_credential("X_OAUTH2_CLIENT_SECRET")
+    client_id = os.getenv("X_OAUTH2_CLIENT_ID") or get_credential("X_OAUTH2_CLIENT_ID", profile=profile)
+    redirect_uri = os.getenv("X_OAUTH2_REDIRECT_URI") or get_credential("X_OAUTH2_REDIRECT_URI", profile=profile)
+    raw_scopes = os.getenv("X_OAUTH2_SCOPES") or get_credential("X_OAUTH2_SCOPES", profile=profile)
+    client_secret = os.getenv("X_OAUTH2_CLIENT_SECRET") or get_credential("X_OAUTH2_CLIENT_SECRET", profile=profile)
 
     if not client_id or not redirect_uri:
         raise RuntimeError("Missing X_OAUTH2_CLIENT_ID or X_OAUTH2_REDIRECT_URI")
@@ -234,21 +241,26 @@ def oauth2_login_flow(record_fixtures: bool = False) -> dict[str, Any]:
     )
 
     user_payload = get_user_me(token["access_token"])
-    user_id = user_payload.get("data", {}).get("id")
+    user_data = user_payload.get("data", {})
+    user_id = user_data.get("id")
+    username = user_data.get("username")
     if not user_id:
         raise RuntimeError("OAuth2 /2/users/me response missing user id")
+    if not username:
+        raise RuntimeError("OAuth2 /2/users/me response missing username")
 
-    save_token(user_id=str(user_id), token=token)
+    ensure_profile(str(username))
+    save_token(user_id=str(user_id), token=token, profile=str(username))
     if record_fixtures:
         write_oauth2_fixtures(token=token, user_payload=user_payload)
     return user_payload
 
-def oauth2_whoami(user_id: str | None = None) -> dict[str, Any]:
+def oauth2_whoami(user_id: str | None = None, profile: str | None = None) -> dict[str, Any]:
     """Return /2/users/me payload using stored token."""
     from .session import get_sessions_dir, load_token
 
     if user_id:
-        token = load_token(user_id)
+        token = load_token(user_id, profile=profile)
         if not token:
             raise RuntimeError(f"No OAuth2 token stored for user id {user_id}")
     else:
@@ -265,9 +277,21 @@ def oauth2_whoami(user_id: str | None = None) -> dict[str, Any]:
         tokens_data = json.loads(tokens)
         if not tokens_data:
             raise RuntimeError("No OAuth2 tokens stored. Run `birdapp auth login` first.")
-
-        first_user_id = next(iter(tokens_data.keys()))
-        token = tokens_data[first_user_id]
+        profiles = tokens_data.get("profiles")
+        if isinstance(profiles, dict):
+            profile_name = profile or get_active_profile()
+            if not profile_name and len(profiles) == 1:
+                profile_name = next(iter(profiles.keys()))
+            if not profile_name:
+                raise RuntimeError("No active profile set. Run `birdapp profile use <username>`.")
+            profile_tokens = profiles.get(profile_name, {})
+            if not profile_tokens:
+                raise RuntimeError("No OAuth2 tokens stored. Run `birdapp auth login` first.")
+            first_user_id = next(iter(profile_tokens.keys()))
+            token = profile_tokens[first_user_id]
+        else:
+            first_user_id = next(iter(tokens_data.keys()))
+            token = tokens_data[first_user_id]
 
     access_token = token.get("access_token")
     if not access_token:

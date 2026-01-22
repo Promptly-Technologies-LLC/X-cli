@@ -46,6 +46,29 @@ In the dashboard, you will need to create an application. Make sure your applica
 - Access Token
 - Access Token Secret
 
+### Profiles
+
+Birdapp stores credentials by username profile. Each profile is keyed by the X username
+(without `@`).
+
+How profiles are created:
+- OAuth1: created when you run `birdapp auth config --oauth1` and enter a username.
+- OAuth2: created when you run `birdapp auth login` (the username comes from the login).
+
+How profiles are selected:
+- The active profile is set by `birdapp profile use <username>`.
+- `--profile <username>` overrides the active profile for a single command.
+
+Commands:
+```bash
+birdapp auth config --oauth1          # creates/updates profile after you enter a username
+birdapp auth config --oauth2          # configures shared OAuth2 app credentials
+birdapp auth login                    # creates/updates profile after OAuth2 login
+birdapp profile list
+birdapp profile use yourusername
+birdapp profile show yourusername
+```
+
 ### Setting Up Credentials
 
 Run the configuration command to set up your credentials:
@@ -54,7 +77,16 @@ Run the configuration command to set up your credentials:
 birdapp auth config --oauth1 # or --oauth2
 ```
 
-This will prompt you for your Twitter API credentials and store them securely in `~/.config/birdapp/config.json`.
+Required:
+- OAuth1: run `birdapp auth config --oauth1` per profile.
+- OAuth2: run `birdapp auth config --oauth2` once, then `birdapp auth login` per account.
+- Choose OAuth1 or OAuth2 based on your app registration and security posture.
+
+Optional:
+- Use `--profile <username>` to configure a specific profile without switching.
+
+This will prompt you for your Twitter API credentials and store them securely in
+`~/.config/birdapp/config.json`.
 
 To view your current configuration (without showing secrets):
 
@@ -68,14 +100,16 @@ Birdapp supports both OAuth1 and OAuth2. Choose based on your security posture a
 your X app is registered.
 
 OAuth1:
-- No separate login step once configured.
+- Required: `birdapp auth config --oauth1`
+- Optional: None (no separate login step)
 - Stores app key/secret and user access token/secret locally.
-- Configuration is single-account (one set of tokens at a time).
+- Best when you want direct user tokens and minimal steps.
 
 OAuth2 (Authorization Code with PKCE):
-- Requires a separate login step.
-- Tokens are stored per user id (multiple accounts supported).
-- `auth whoami` defaults to the first stored token unless `--user-id` is provided.
+- Required: `birdapp auth config --oauth2` (app config), then `birdapp auth login` (profile creation)
+- Optional: `birdapp auth whoami` to verify the token
+- Tokens are stored per profile and user id (multiple accounts supported).
+- `auth whoami` uses the active profile unless `--profile` or `--user-id` is provided.
 - If `X_OAUTH2_CLIENT_SECRET` is set, the client behaves as confidential; otherwise it
   uses public PKCE and avoids storing an app secret. The user experience is the same for both flows, but you may need to use the confidential flow if you registered your app as confidential.
 
@@ -93,6 +127,13 @@ You can set these via the config workflow:
 ```bash
 birdapp auth config --oauth2
 ```
+
+Required:
+- `birdapp auth config --oauth2` (shared app config)
+- `birdapp auth login` (creates the profile and stores tokens)
+
+Optional:
+- `birdapp auth whoami`
 
 To authenticate and store a token:
 

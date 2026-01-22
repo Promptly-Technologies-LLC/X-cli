@@ -3,9 +3,15 @@ import json
 import os
 from .tweet import post_tweet, get_tweets_by_ids
 from .config import (
+    clear_profile_override,
+    get_active_profile,
     get_credential,
+    has_profile,
+    list_profiles,
     prompt_for_credentials,
     prompt_for_oauth2_credentials,
+    set_active_profile,
+    set_profile_override,
     show_config,
 )
 from .oauth2 import oauth2_login_flow, oauth2_whoami
@@ -55,7 +61,17 @@ def _prompt_for_auth_flow() -> str:
 def main() -> None:
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(description="X CLI - Post tweets from the command line")
+    parser.add_argument("--profile", type=str, help="Use a specific profile for this command")
     subparsers = parser.add_subparsers(dest="command", help="Available commands", required=True)
+    # Profile subcommand
+    profile_parser = subparsers.add_parser("profile", help="Manage profiles")
+    profile_subparsers = profile_parser.add_subparsers(dest="profile_command", required=True)
+    profile_use_parser = profile_subparsers.add_parser("use", help="Set active profile")
+    profile_use_parser.add_argument("username", type=str, help="Profile username to activate")
+    profile_subparsers.add_parser("list", help="List available profiles")
+    profile_show_parser = profile_subparsers.add_parser("show", help="Show profile configuration")
+    profile_show_parser.add_argument("username", nargs="?", help="Profile username")
+
 
     # Auth subcommand
     auth_parser = subparsers.add_parser("auth", help="Authentication and credential management")
@@ -132,22 +148,49 @@ def main() -> None:
     
     # Parse arguments
     args = parser.parse_args()
+    if args.profile:
+        set_profile_override(args.profile)
+    else:
+        clear_profile_override()
     
+    # Handle profile command
+    if args.command == "profile":
+        if args.profile_command == "use":
+            if not has_profile(args.username):
+                print(f"Profile '{args.username}' not found. Run `birdapp auth config` to create it.")
+                return
+            set_active_profile(args.username)
+            print(f"Active profile set to {args.username}")
+            return
+        if args.profile_command == "list":
+            profiles = list_profiles()
+            if not profiles:
+                print("No profiles found. Run `birdapp auth config` to create one.")
+                return
+            active = get_active_profile()
+            for profile in profiles:
+                marker = "*" if active == profile else " "
+                print(f"{marker} {profile}")
+            return
+        if args.profile_command == "show":
+            show_config(profile=args.username)
+            return
+
     # Handle auth command
     if args.command == "auth":
         if args.auth_command == "config":
             if args.show:
-                show_config()
+                show_config(profile=args.profile)
             elif args.oauth1:
-                prompt_for_credentials()
+                prompt_for_credentials(profile=args.profile)
             elif args.oauth2:
-                prompt_for_oauth2_credentials()
+                prompt_for_oauth2_credentials(profile=args.profile)
             else:
                 flow = _prompt_for_auth_flow()
                 if flow == "oauth1":
-                    prompt_for_credentials()
+                    prompt_for_credentials(profile=args.profile)
                 else:
-                    prompt_for_oauth2_credentials()
+                    prompt_for_oauth2_credentials(profile=args.profile)
         elif args.auth_command == "login":
             if not _has_oauth2_config():
                 if _has_oauth1_credentials():
@@ -157,7 +200,7 @@ def main() -> None:
                 return
 
             try:
-                result = oauth2_login_flow()
+                result = oauth2_login_flow(profile=args.profile)
                 if args.json:
                     print(json.dumps(result, indent=2))
                 else:
@@ -166,7 +209,7 @@ def main() -> None:
                 print(f"❌ Error during OAuth2 flow: {str(e)}")
         else:
             try:
-                result = oauth2_whoami(args.user_id)
+                result = oauth2_whoami(args.user_id, profile=args.profile)
                 if args.json:
                     print(json.dumps(result, indent=2))
                 else:
