@@ -15,6 +15,7 @@ x-cli = "x_cli.main:main"
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.2",
     "ruff>=0.14.13",
     "ty>=0.0.13",
     "types-requests>=2.32.4.20250809",
