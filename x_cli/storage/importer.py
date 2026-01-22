@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Sequence, TypeVar
 
 import requests
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from .db import get_default_db_url, get_engine, get_session, init_db
 from .models import (
@@ -24,6 +24,7 @@ from .models import (
     UploadOptions,
 )
 
+ModelType = TypeVar("ModelType")
 
 ARCHIVE_URL_TEMPLATE = (
     "https://fabxmporizzqflnftavs.supabase.co/storage/v1/object/public/"
@@ -66,6 +67,10 @@ def _indices_to_bounds(indices: Iterable[Any]) -> tuple[Optional[int], Optional[
         return None, None
     return _safe_int(items[0]), _safe_int(items[1])
 
+def _exists(session: Session, model: type[ModelType], filters: Sequence[Any]) -> bool:
+    statement = select(model).where(*filters).limit(1)
+    return session.exec(statement).first() is not None
+
 
 def import_archive_data(
     data: dict[str, Any],
@@ -96,15 +101,22 @@ def import_archive_data(
 
     upload_options = data.get("upload-options")
     if isinstance(upload_options, dict):
-        session.add(
-            UploadOptions(
-                keep_private=bool(upload_options.get("keepPrivate")),
-                upload_likes=bool(upload_options.get("uploadLikes")),
-                start_date=str(upload_options.get("startDate", "")),
-                end_date=str(upload_options.get("endDate", "")),
+        existing = session.exec(select(UploadOptions).limit(1)).first()
+        if existing is None:
+            session.add(
+                UploadOptions(
+                    keep_private=bool(upload_options.get("keepPrivate")),
+                    upload_likes=bool(upload_options.get("uploadLikes")),
+                    start_date=str(upload_options.get("startDate", "")),
+                    end_date=str(upload_options.get("endDate", "")),
+                )
             )
-        )
-        counts["upload_options"] += 1
+            counts["upload_options"] += 1
+        else:
+            existing.keep_private = bool(upload_options.get("keepPrivate"))
+            existing.upload_likes = bool(upload_options.get("uploadLikes"))
+            existing.start_date = str(upload_options.get("startDate", ""))
+            existing.end_date = str(upload_options.get("endDate", ""))
 
     account_list = data.get("account") or []
     for item in account_list:
@@ -112,16 +124,23 @@ def import_archive_data(
         account_id = str(account.get("accountId", ""))
         if not account_id:
             continue
-        session.add(
-            Account(
-                account_id=account_id,
-                username=str(account.get("username", "")),
-                account_display_name=str(account.get("accountDisplayName", "")),
-                created_at=str(account.get("createdAt", "")),
-                created_via=str(account.get("createdVia", "")),
+        existing = session.get(Account, account_id)
+        if existing is None:
+            session.add(
+                Account(
+                    account_id=account_id,
+                    username=str(account.get("username", "")),
+                    account_display_name=str(account.get("accountDisplayName", "")),
+                    created_at=str(account.get("createdAt", "")),
+                    created_via=str(account.get("createdVia", "")),
+                )
             )
-        )
-        counts["account"] += 1
+            counts["account"] += 1
+        else:
+            existing.username = str(account.get("username", ""))
+            existing.account_display_name = str(account.get("accountDisplayName", ""))
+            existing.created_at = str(account.get("createdAt", ""))
+            existing.created_via = str(account.get("createdVia", ""))
 
     profile_list = data.get("profile") or []
     for item in profile_list:
@@ -133,17 +152,25 @@ def import_archive_data(
             account_id = account.get("accountId")
         if not account_id:
             continue
-        session.add(
-            Profile(
-                account_id=str(account_id),
-                bio=str(description.get("bio", "")),
-                website=str(description.get("website", "")),
-                location=str(description.get("location", "")),
-                avatar_media_url=str(profile.get("avatarMediaUrl", "")),
-                header_media_url=str(profile.get("headerMediaUrl", "")),
+        existing = session.get(Profile, str(account_id))
+        if existing is None:
+            session.add(
+                Profile(
+                    account_id=str(account_id),
+                    bio=str(description.get("bio", "")),
+                    website=str(description.get("website", "")),
+                    location=str(description.get("location", "")),
+                    avatar_media_url=str(profile.get("avatarMediaUrl", "")),
+                    header_media_url=str(profile.get("headerMediaUrl", "")),
+                )
             )
-        )
-        counts["profile"] += 1
+            counts["profile"] += 1
+        else:
+            existing.bio = str(description.get("bio", ""))
+            existing.website = str(description.get("website", ""))
+            existing.location = str(description.get("location", ""))
+            existing.avatar_media_url = str(profile.get("avatarMediaUrl", ""))
+            existing.header_media_url = str(profile.get("headerMediaUrl", ""))
 
     tweet_counter = 0
     for item in data.get("tweets") or []:
@@ -152,194 +179,313 @@ def import_archive_data(
         if not tweet_id:
             continue
         display_text_range = tweet.get("display_text_range")
-        session.add(
-            Tweet(
-                tweet_id=tweet_id,
-                tweet_id_str=str(tweet.get("id_str", "")) or None,
-                tweet_kind="tweet",
-                created_at=str(tweet.get("created_at", "")),
-                full_text=str(tweet.get("full_text", "")),
-                lang=str(tweet.get("lang", "")),
-                source=str(tweet.get("source", "")),
-                retweeted=bool(tweet.get("retweeted")),
-                favorited=bool(tweet.get("favorited")),
-                truncated=bool(tweet.get("truncated")),
-                favorite_count=_safe_int(tweet.get("favorite_count")),
-                retweet_count=_safe_int(tweet.get("retweet_count")),
-                display_text_range=(
-                    [v for v in (_safe_int(x) for x in display_text_range or []) if v is not None]
-                    if display_text_range is not None
-                    else None
-                ),
-                in_reply_to_status_id=(
-                    str(tweet.get("in_reply_to_status_id"))
-                    if tweet.get("in_reply_to_status_id") is not None
-                    else None
-                ),
-                in_reply_to_status_id_str=(
-                    str(tweet.get("in_reply_to_status_id_str"))
-                    if tweet.get("in_reply_to_status_id_str") is not None
-                    else None
-                ),
-                in_reply_to_user_id=(
-                    str(tweet.get("in_reply_to_user_id"))
-                    if tweet.get("in_reply_to_user_id") is not None
-                    else None
-                ),
-                in_reply_to_user_id_str=(
-                    str(tweet.get("in_reply_to_user_id_str"))
-                    if tweet.get("in_reply_to_user_id_str") is not None
-                    else None
-                ),
-                in_reply_to_screen_name=(
-                    str(tweet.get("in_reply_to_screen_name"))
-                    if tweet.get("in_reply_to_screen_name") is not None
-                    else None
-                ),
-                possibly_sensitive=(
-                    bool(tweet.get("possibly_sensitive"))
-                    if tweet.get("possibly_sensitive") is not None
-                    else None
-                ),
-                edit_info=tweet.get("edit_info"),
+        existing = session.get(Tweet, tweet_id)
+        if existing is None:
+            session.add(
+                Tweet(
+                    tweet_id=tweet_id,
+                    tweet_id_str=str(tweet.get("id_str", "")) or None,
+                    tweet_kind="tweet",
+                    created_at=str(tweet.get("created_at", "")),
+                    full_text=str(tweet.get("full_text", "")),
+                    lang=str(tweet.get("lang", "")),
+                    source=str(tweet.get("source", "")),
+                    retweeted=bool(tweet.get("retweeted")),
+                    favorited=bool(tweet.get("favorited")),
+                    truncated=bool(tweet.get("truncated")),
+                    favorite_count=_safe_int(tweet.get("favorite_count")),
+                    retweet_count=_safe_int(tweet.get("retweet_count")),
+                    display_text_range=(
+                        [v for v in (_safe_int(x) for x in display_text_range or []) if v is not None]
+                        if display_text_range is not None
+                        else None
+                    ),
+                    in_reply_to_status_id=(
+                        str(tweet.get("in_reply_to_status_id"))
+                        if tweet.get("in_reply_to_status_id") is not None
+                        else None
+                    ),
+                    in_reply_to_status_id_str=(
+                        str(tweet.get("in_reply_to_status_id_str"))
+                        if tweet.get("in_reply_to_status_id_str") is not None
+                        else None
+                    ),
+                    in_reply_to_user_id=(
+                        str(tweet.get("in_reply_to_user_id"))
+                        if tweet.get("in_reply_to_user_id") is not None
+                        else None
+                    ),
+                    in_reply_to_user_id_str=(
+                        str(tweet.get("in_reply_to_user_id_str"))
+                        if tweet.get("in_reply_to_user_id_str") is not None
+                        else None
+                    ),
+                    in_reply_to_screen_name=(
+                        str(tweet.get("in_reply_to_screen_name"))
+                        if tweet.get("in_reply_to_screen_name") is not None
+                        else None
+                    ),
+                    possibly_sensitive=(
+                        bool(tweet.get("possibly_sensitive"))
+                        if tweet.get("possibly_sensitive") is not None
+                        else None
+                    ),
+                    edit_info=tweet.get("edit_info"),
+                )
             )
-        )
-        counts["tweet"] += 1
+            counts["tweet"] += 1
+        else:
+            existing.tweet_id_str = str(tweet.get("id_str", "")) or None
+            existing.tweet_kind = "tweet"
+            existing.created_at = str(tweet.get("created_at", ""))
+            existing.full_text = str(tweet.get("full_text", ""))
+            existing.lang = str(tweet.get("lang", ""))
+            existing.source = str(tweet.get("source", ""))
+            existing.retweeted = bool(tweet.get("retweeted"))
+            existing.favorited = bool(tweet.get("favorited"))
+            existing.truncated = bool(tweet.get("truncated"))
+            existing.favorite_count = _safe_int(tweet.get("favorite_count"))
+            existing.retweet_count = _safe_int(tweet.get("retweet_count"))
+            existing.display_text_range = (
+                [v for v in (_safe_int(x) for x in display_text_range or []) if v is not None]
+                if display_text_range is not None
+                else None
+            )
+            existing.in_reply_to_status_id = (
+                str(tweet.get("in_reply_to_status_id"))
+                if tweet.get("in_reply_to_status_id") is not None
+                else None
+            )
+            existing.in_reply_to_status_id_str = (
+                str(tweet.get("in_reply_to_status_id_str"))
+                if tweet.get("in_reply_to_status_id_str") is not None
+                else None
+            )
+            existing.in_reply_to_user_id = (
+                str(tweet.get("in_reply_to_user_id"))
+                if tweet.get("in_reply_to_user_id") is not None
+                else None
+            )
+            existing.in_reply_to_user_id_str = (
+                str(tweet.get("in_reply_to_user_id_str"))
+                if tweet.get("in_reply_to_user_id_str") is not None
+                else None
+            )
+            existing.in_reply_to_screen_name = (
+                str(tweet.get("in_reply_to_screen_name"))
+                if tweet.get("in_reply_to_screen_name") is not None
+                else None
+            )
+            existing.possibly_sensitive = (
+                bool(tweet.get("possibly_sensitive"))
+                if tweet.get("possibly_sensitive") is not None
+                else None
+            )
+            existing.edit_info = tweet.get("edit_info")
 
         entities = tweet.get("entities") or {}
         for hashtag in entities.get("hashtags") or []:
             start_index, end_index = _indices_to_bounds(hashtag.get("indices") or [])
-            session.add(
-                TweetHashtag(
-                    tweet_id=tweet_id,
-                    text=str(hashtag.get("text", "")),
-                    start_index=start_index,
-                    end_index=end_index,
+            if not _exists(
+                session,
+                TweetHashtag,
+                [
+                    TweetHashtag.tweet_id == tweet_id,
+                    TweetHashtag.text == str(hashtag.get("text", "")),
+                    TweetHashtag.start_index == start_index,
+                    TweetHashtag.end_index == end_index,
+                ],
+            ):
+                session.add(
+                    TweetHashtag(
+                        tweet_id=tweet_id,
+                        text=str(hashtag.get("text", "")),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
                 )
-            )
-            counts["tweet_hashtag"] += 1
+                counts["tweet_hashtag"] += 1
 
         for symbol in entities.get("symbols") or []:
             start_index, end_index = _indices_to_bounds(symbol.get("indices") or [])
-            session.add(
-                TweetSymbol(
-                    tweet_id=tweet_id,
-                    text=str(symbol.get("text", "")),
-                    start_index=start_index,
-                    end_index=end_index,
+            if not _exists(
+                session,
+                TweetSymbol,
+                [
+                    TweetSymbol.tweet_id == tweet_id,
+                    TweetSymbol.text == str(symbol.get("text", "")),
+                    TweetSymbol.start_index == start_index,
+                    TweetSymbol.end_index == end_index,
+                ],
+            ):
+                session.add(
+                    TweetSymbol(
+                        tweet_id=tweet_id,
+                        text=str(symbol.get("text", "")),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
                 )
-            )
-            counts["tweet_symbol"] += 1
+                counts["tweet_symbol"] += 1
 
         for mention in entities.get("user_mentions") or []:
             start_index, end_index = _indices_to_bounds(mention.get("indices") or [])
-            session.add(
-                TweetUserMention(
-                    tweet_id=tweet_id,
-                    user_id=str(mention.get("id", "")) or None,
-                    user_id_str=str(mention.get("id_str", "")) or None,
-                    name=str(mention.get("name", "")),
-                    screen_name=str(mention.get("screen_name", "")),
-                    start_index=start_index,
-                    end_index=end_index,
+            if not _exists(
+                session,
+                TweetUserMention,
+                [
+                    TweetUserMention.tweet_id == tweet_id,
+                    TweetUserMention.user_id == (str(mention.get("id", "")) or None),
+                    TweetUserMention.user_id_str == (str(mention.get("id_str", "")) or None),
+                    TweetUserMention.name == str(mention.get("name", "")),
+                    TweetUserMention.screen_name == str(mention.get("screen_name", "")),
+                    TweetUserMention.start_index == start_index,
+                    TweetUserMention.end_index == end_index,
+                ],
+            ):
+                session.add(
+                    TweetUserMention(
+                        tweet_id=tweet_id,
+                        user_id=str(mention.get("id", "")) or None,
+                        user_id_str=str(mention.get("id_str", "")) or None,
+                        name=str(mention.get("name", "")),
+                        screen_name=str(mention.get("screen_name", "")),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
                 )
-            )
-            counts["tweet_user_mention"] += 1
+                counts["tweet_user_mention"] += 1
 
         for url in entities.get("urls") or []:
             start_index, end_index = _indices_to_bounds(url.get("indices") or [])
-            session.add(
-                TweetUrl(
-                    tweet_id=tweet_id,
-                    url=str(url.get("url", "")),
-                    expanded_url=str(url.get("expanded_url", "")),
-                    display_url=str(url.get("display_url", "")),
-                    start_index=start_index,
-                    end_index=end_index,
+            if not _exists(
+                session,
+                TweetUrl,
+                [
+                    TweetUrl.tweet_id == tweet_id,
+                    TweetUrl.url == str(url.get("url", "")),
+                    TweetUrl.expanded_url == str(url.get("expanded_url", "")),
+                    TweetUrl.display_url == str(url.get("display_url", "")),
+                    TweetUrl.start_index == start_index,
+                    TweetUrl.end_index == end_index,
+                ],
+            ):
+                session.add(
+                    TweetUrl(
+                        tweet_id=tweet_id,
+                        url=str(url.get("url", "")),
+                        expanded_url=str(url.get("expanded_url", "")),
+                        display_url=str(url.get("display_url", "")),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
                 )
-            )
-            counts["tweet_url"] += 1
+                counts["tweet_url"] += 1
 
         for media in entities.get("media") or []:
             start_index, end_index = _indices_to_bounds(media.get("indices") or [])
-            session.add(
-                TweetMedia(
-                    tweet_id=tweet_id,
-                    entity_type="entities",
-                    media_id=str(media.get("id", "")) or None,
-                    media_id_str=str(media.get("id_str", "")) or None,
-                    media_type=str(media.get("type", "")),
-                    url=str(media.get("url", "")),
-                    expanded_url=str(media.get("expanded_url", "")),
-                    display_url=str(media.get("display_url", "")),
-                    media_url=str(media.get("media_url", "")),
-                    media_url_https=str(media.get("media_url_https", "")),
-                    sizes=media.get("sizes"),
-                    source_status_id=(
-                        str(media.get("source_status_id"))
-                        if media.get("source_status_id") is not None
-                        else None
-                    ),
-                    source_status_id_str=(
-                        str(media.get("source_status_id_str"))
-                        if media.get("source_status_id_str") is not None
-                        else None
-                    ),
-                    source_user_id=(
-                        str(media.get("source_user_id"))
-                        if media.get("source_user_id") is not None
-                        else None
-                    ),
-                    source_user_id_str=(
-                        str(media.get("source_user_id_str"))
-                        if media.get("source_user_id_str") is not None
-                        else None
-                    ),
+            if not _exists(
+                session,
+                TweetMedia,
+                [
+                    TweetMedia.tweet_id == tweet_id,
+                    TweetMedia.entity_type == "entities",
+                    TweetMedia.media_id == (str(media.get("id", "")) or None),
+                    TweetMedia.media_id_str == (str(media.get("id_str", "")) or None),
+                    TweetMedia.url == str(media.get("url", "")),
+                    TweetMedia.media_url == str(media.get("media_url", "")),
+                ],
+            ):
+                session.add(
+                    TweetMedia(
+                        tweet_id=tweet_id,
+                        entity_type="entities",
+                        media_id=str(media.get("id", "")) or None,
+                        media_id_str=str(media.get("id_str", "")) or None,
+                        media_type=str(media.get("type", "")),
+                        url=str(media.get("url", "")),
+                        expanded_url=str(media.get("expanded_url", "")),
+                        display_url=str(media.get("display_url", "")),
+                        media_url=str(media.get("media_url", "")),
+                        media_url_https=str(media.get("media_url_https", "")),
+                        sizes=media.get("sizes"),
+                        source_status_id=(
+                            str(media.get("source_status_id"))
+                            if media.get("source_status_id") is not None
+                            else None
+                        ),
+                        source_status_id_str=(
+                            str(media.get("source_status_id_str"))
+                            if media.get("source_status_id_str") is not None
+                            else None
+                        ),
+                        source_user_id=(
+                            str(media.get("source_user_id"))
+                            if media.get("source_user_id") is not None
+                            else None
+                        ),
+                        source_user_id_str=(
+                            str(media.get("source_user_id_str"))
+                            if media.get("source_user_id_str") is not None
+                            else None
+                        ),
+                    )
                 )
-            )
-            counts["tweet_media"] += 1
+                counts["tweet_media"] += 1
 
         extended = tweet.get("extended_entities") or {}
         for media in extended.get("media") or []:
             start_index, end_index = _indices_to_bounds(media.get("indices") or [])
-            session.add(
-                TweetMedia(
-                    tweet_id=tweet_id,
-                    entity_type="extended",
-                    media_id=str(media.get("id", "")) or None,
-                    media_id_str=str(media.get("id_str", "")) or None,
-                    media_type=str(media.get("type", "")),
-                    url=str(media.get("url", "")),
-                    expanded_url=str(media.get("expanded_url", "")),
-                    display_url=str(media.get("display_url", "")),
-                    media_url=str(media.get("media_url", "")),
-                    media_url_https=str(media.get("media_url_https", "")),
-                    sizes=media.get("sizes"),
-                    video_info=media.get("video_info"),
-                    additional_media_info=media.get("additional_media_info"),
-                    source_status_id=(
-                        str(media.get("source_status_id"))
-                        if media.get("source_status_id") is not None
-                        else None
-                    ),
-                    source_status_id_str=(
-                        str(media.get("source_status_id_str"))
-                        if media.get("source_status_id_str") is not None
-                        else None
-                    ),
-                    source_user_id=(
-                        str(media.get("source_user_id"))
-                        if media.get("source_user_id") is not None
-                        else None
-                    ),
-                    source_user_id_str=(
-                        str(media.get("source_user_id_str"))
-                        if media.get("source_user_id_str") is not None
-                        else None
-                    ),
+            if not _exists(
+                session,
+                TweetMedia,
+                [
+                    TweetMedia.tweet_id == tweet_id,
+                    TweetMedia.entity_type == "extended",
+                    TweetMedia.media_id == (str(media.get("id", "")) or None),
+                    TweetMedia.media_id_str == (str(media.get("id_str", "")) or None),
+                    TweetMedia.url == str(media.get("url", "")),
+                    TweetMedia.media_url == str(media.get("media_url", "")),
+                ],
+            ):
+                session.add(
+                    TweetMedia(
+                        tweet_id=tweet_id,
+                        entity_type="extended",
+                        media_id=str(media.get("id", "")) or None,
+                        media_id_str=str(media.get("id_str", "")) or None,
+                        media_type=str(media.get("type", "")),
+                        url=str(media.get("url", "")),
+                        expanded_url=str(media.get("expanded_url", "")),
+                        display_url=str(media.get("display_url", "")),
+                        media_url=str(media.get("media_url", "")),
+                        media_url_https=str(media.get("media_url_https", "")),
+                        sizes=media.get("sizes"),
+                        video_info=media.get("video_info"),
+                        additional_media_info=media.get("additional_media_info"),
+                        source_status_id=(
+                            str(media.get("source_status_id"))
+                            if media.get("source_status_id") is not None
+                            else None
+                        ),
+                        source_status_id_str=(
+                            str(media.get("source_status_id_str"))
+                            if media.get("source_status_id_str") is not None
+                            else None
+                        ),
+                        source_user_id=(
+                            str(media.get("source_user_id"))
+                            if media.get("source_user_id") is not None
+                            else None
+                        ),
+                        source_user_id_str=(
+                            str(media.get("source_user_id_str"))
+                            if media.get("source_user_id_str") is not None
+                            else None
+                        ),
+                    )
                 )
-            )
-            counts["tweet_media"] += 1
+                counts["tweet_media"] += 1
 
         tweet_counter += 1
         commit_if_needed(tweet_counter)
@@ -351,116 +497,214 @@ def import_archive_data(
         if not tweet_id:
             continue
         display_text_range = tweet.get("display_text_range")
-        session.add(
-            Tweet(
-                tweet_id=tweet_id,
-                tweet_id_str=str(tweet.get("id_str", "")) or None,
-                tweet_kind="community",
-                created_at=str(tweet.get("created_at", "")),
-                full_text=str(tweet.get("full_text", "")),
-                lang=str(tweet.get("lang", "")),
-                source=str(tweet.get("source", "")),
-                retweeted=bool(tweet.get("retweeted")),
-                favorited=bool(tweet.get("favorited")),
-                truncated=bool(tweet.get("truncated")),
-                favorite_count=_safe_int(tweet.get("favorite_count")),
-                retweet_count=_safe_int(tweet.get("retweet_count")),
-                display_text_range=(
-                    [v for v in (_safe_int(x) for x in display_text_range or []) if v is not None]
-                    if display_text_range is not None
-                    else None
-                ),
-                in_reply_to_status_id=(
-                    str(tweet.get("in_reply_to_status_id"))
-                    if tweet.get("in_reply_to_status_id") is not None
-                    else None
-                ),
-                in_reply_to_status_id_str=(
-                    str(tweet.get("in_reply_to_status_id_str"))
-                    if tweet.get("in_reply_to_status_id_str") is not None
-                    else None
-                ),
-                in_reply_to_user_id=(
-                    str(tweet.get("in_reply_to_user_id"))
-                    if tweet.get("in_reply_to_user_id") is not None
-                    else None
-                ),
-                in_reply_to_user_id_str=(
-                    str(tweet.get("in_reply_to_user_id_str"))
-                    if tweet.get("in_reply_to_user_id_str") is not None
-                    else None
-                ),
-                in_reply_to_screen_name=(
-                    str(tweet.get("in_reply_to_screen_name"))
-                    if tweet.get("in_reply_to_screen_name") is not None
-                    else None
-                ),
-                possibly_sensitive=(
-                    bool(tweet.get("possibly_sensitive"))
-                    if tweet.get("possibly_sensitive") is not None
-                    else None
-                ),
-                edit_info=tweet.get("edit_info"),
-                community_id=str(tweet.get("community_id", "")) or None,
-                community_id_str=str(tweet.get("community_id_str", "")) or None,
-                scopes=tweet.get("scopes"),
+        existing = session.get(Tweet, tweet_id)
+        if existing is None:
+            session.add(
+                Tweet(
+                    tweet_id=tweet_id,
+                    tweet_id_str=str(tweet.get("id_str", "")) or None,
+                    tweet_kind="community",
+                    created_at=str(tweet.get("created_at", "")),
+                    full_text=str(tweet.get("full_text", "")),
+                    lang=str(tweet.get("lang", "")),
+                    source=str(tweet.get("source", "")),
+                    retweeted=bool(tweet.get("retweeted")),
+                    favorited=bool(tweet.get("favorited")),
+                    truncated=bool(tweet.get("truncated")),
+                    favorite_count=_safe_int(tweet.get("favorite_count")),
+                    retweet_count=_safe_int(tweet.get("retweet_count")),
+                    display_text_range=(
+                        [v for v in (_safe_int(x) for x in display_text_range or []) if v is not None]
+                        if display_text_range is not None
+                        else None
+                    ),
+                    in_reply_to_status_id=(
+                        str(tweet.get("in_reply_to_status_id"))
+                        if tweet.get("in_reply_to_status_id") is not None
+                        else None
+                    ),
+                    in_reply_to_status_id_str=(
+                        str(tweet.get("in_reply_to_status_id_str"))
+                        if tweet.get("in_reply_to_status_id_str") is not None
+                        else None
+                    ),
+                    in_reply_to_user_id=(
+                        str(tweet.get("in_reply_to_user_id"))
+                        if tweet.get("in_reply_to_user_id") is not None
+                        else None
+                    ),
+                    in_reply_to_user_id_str=(
+                        str(tweet.get("in_reply_to_user_id_str"))
+                        if tweet.get("in_reply_to_user_id_str") is not None
+                        else None
+                    ),
+                    in_reply_to_screen_name=(
+                        str(tweet.get("in_reply_to_screen_name"))
+                        if tweet.get("in_reply_to_screen_name") is not None
+                        else None
+                    ),
+                    possibly_sensitive=(
+                        bool(tweet.get("possibly_sensitive"))
+                        if tweet.get("possibly_sensitive") is not None
+                        else None
+                    ),
+                    edit_info=tweet.get("edit_info"),
+                    community_id=str(tweet.get("community_id", "")) or None,
+                    community_id_str=str(tweet.get("community_id_str", "")) or None,
+                    scopes=tweet.get("scopes"),
+                )
             )
-        )
-        counts["community_tweet"] += 1
+            counts["community_tweet"] += 1
+        else:
+            existing.tweet_id_str = str(tweet.get("id_str", "")) or None
+            existing.tweet_kind = "community"
+            existing.created_at = str(tweet.get("created_at", ""))
+            existing.full_text = str(tweet.get("full_text", ""))
+            existing.lang = str(tweet.get("lang", ""))
+            existing.source = str(tweet.get("source", ""))
+            existing.retweeted = bool(tweet.get("retweeted"))
+            existing.favorited = bool(tweet.get("favorited"))
+            existing.truncated = bool(tweet.get("truncated"))
+            existing.favorite_count = _safe_int(tweet.get("favorite_count"))
+            existing.retweet_count = _safe_int(tweet.get("retweet_count"))
+            existing.display_text_range = (
+                [v for v in (_safe_int(x) for x in display_text_range or []) if v is not None]
+                if display_text_range is not None
+                else None
+            )
+            existing.in_reply_to_status_id = (
+                str(tweet.get("in_reply_to_status_id"))
+                if tweet.get("in_reply_to_status_id") is not None
+                else None
+            )
+            existing.in_reply_to_status_id_str = (
+                str(tweet.get("in_reply_to_status_id_str"))
+                if tweet.get("in_reply_to_status_id_str") is not None
+                else None
+            )
+            existing.in_reply_to_user_id = (
+                str(tweet.get("in_reply_to_user_id"))
+                if tweet.get("in_reply_to_user_id") is not None
+                else None
+            )
+            existing.in_reply_to_user_id_str = (
+                str(tweet.get("in_reply_to_user_id_str"))
+                if tweet.get("in_reply_to_user_id_str") is not None
+                else None
+            )
+            existing.in_reply_to_screen_name = (
+                str(tweet.get("in_reply_to_screen_name"))
+                if tweet.get("in_reply_to_screen_name") is not None
+                else None
+            )
+            existing.possibly_sensitive = (
+                bool(tweet.get("possibly_sensitive"))
+                if tweet.get("possibly_sensitive") is not None
+                else None
+            )
+            existing.edit_info = tweet.get("edit_info")
+            existing.community_id = str(tweet.get("community_id", "")) or None
+            existing.community_id_str = str(tweet.get("community_id_str", "")) or None
+            existing.scopes = tweet.get("scopes")
 
         entities = tweet.get("entities") or {}
         for hashtag in entities.get("hashtags") or []:
             start_index, end_index = _indices_to_bounds(hashtag.get("indices") or [])
-            session.add(
-                TweetHashtag(
-                    tweet_id=tweet_id,
-                    text=str(hashtag.get("text", "")),
-                    start_index=start_index,
-                    end_index=end_index,
+            if not _exists(
+                session,
+                TweetHashtag,
+                [
+                    TweetHashtag.tweet_id == tweet_id,
+                    TweetHashtag.text == str(hashtag.get("text", "")),
+                    TweetHashtag.start_index == start_index,
+                    TweetHashtag.end_index == end_index,
+                ],
+            ):
+                session.add(
+                    TweetHashtag(
+                        tweet_id=tweet_id,
+                        text=str(hashtag.get("text", "")),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
                 )
-            )
-            counts["tweet_hashtag"] += 1
+                counts["tweet_hashtag"] += 1
 
         for symbol in entities.get("symbols") or []:
             start_index, end_index = _indices_to_bounds(symbol.get("indices") or [])
-            session.add(
-                TweetSymbol(
-                    tweet_id=tweet_id,
-                    text=str(symbol.get("text", "")),
-                    start_index=start_index,
-                    end_index=end_index,
+            if not _exists(
+                session,
+                TweetSymbol,
+                [
+                    TweetSymbol.tweet_id == tweet_id,
+                    TweetSymbol.text == str(symbol.get("text", "")),
+                    TweetSymbol.start_index == start_index,
+                    TweetSymbol.end_index == end_index,
+                ],
+            ):
+                session.add(
+                    TweetSymbol(
+                        tweet_id=tweet_id,
+                        text=str(symbol.get("text", "")),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
                 )
-            )
-            counts["tweet_symbol"] += 1
+                counts["tweet_symbol"] += 1
 
         for mention in entities.get("user_mentions") or []:
             start_index, end_index = _indices_to_bounds(mention.get("indices") or [])
-            session.add(
-                TweetUserMention(
-                    tweet_id=tweet_id,
-                    user_id=str(mention.get("id", "")) or None,
-                    user_id_str=str(mention.get("id_str", "")) or None,
-                    name=str(mention.get("name", "")),
-                    screen_name=str(mention.get("screen_name", "")),
-                    start_index=start_index,
-                    end_index=end_index,
+            if not _exists(
+                session,
+                TweetUserMention,
+                [
+                    TweetUserMention.tweet_id == tweet_id,
+                    TweetUserMention.user_id == (str(mention.get("id", "")) or None),
+                    TweetUserMention.user_id_str == (str(mention.get("id_str", "")) or None),
+                    TweetUserMention.name == str(mention.get("name", "")),
+                    TweetUserMention.screen_name == str(mention.get("screen_name", "")),
+                    TweetUserMention.start_index == start_index,
+                    TweetUserMention.end_index == end_index,
+                ],
+            ):
+                session.add(
+                    TweetUserMention(
+                        tweet_id=tweet_id,
+                        user_id=str(mention.get("id", "")) or None,
+                        user_id_str=str(mention.get("id_str", "")) or None,
+                        name=str(mention.get("name", "")),
+                        screen_name=str(mention.get("screen_name", "")),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
                 )
-            )
-            counts["tweet_user_mention"] += 1
+                counts["tweet_user_mention"] += 1
 
         for url in entities.get("urls") or []:
             start_index, end_index = _indices_to_bounds(url.get("indices") or [])
-            session.add(
-                TweetUrl(
-                    tweet_id=tweet_id,
-                    url=str(url.get("url", "")),
-                    expanded_url=str(url.get("expanded_url", "")),
-                    display_url=str(url.get("display_url", "")),
-                    start_index=start_index,
-                    end_index=end_index,
+            if not _exists(
+                session,
+                TweetUrl,
+                [
+                    TweetUrl.tweet_id == tweet_id,
+                    TweetUrl.url == str(url.get("url", "")),
+                    TweetUrl.expanded_url == str(url.get("expanded_url", "")),
+                    TweetUrl.display_url == str(url.get("display_url", "")),
+                    TweetUrl.start_index == start_index,
+                    TweetUrl.end_index == end_index,
+                ],
+            ):
+                session.add(
+                    TweetUrl(
+                        tweet_id=tweet_id,
+                        url=str(url.get("url", "")),
+                        expanded_url=str(url.get("expanded_url", "")),
+                        display_url=str(url.get("display_url", "")),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
                 )
-            )
-            counts["tweet_url"] += 1
+                counts["tweet_url"] += 1
 
         community_counter += 1
         commit_if_needed(community_counter)
@@ -471,16 +715,23 @@ def import_archive_data(
         note_id = str(note.get("noteTweetId", ""))
         if not note_id:
             continue
-        session.add(
-            NoteTweet(
-                note_tweet_id=note_id,
-                created_at=str(note.get("createdAt", "")),
-                updated_at=str(note.get("updatedAt", "")),
-                lifecycle=note.get("lifecycle") or {},
-                core=note.get("core") or {},
+        existing = session.get(NoteTweet, note_id)
+        if existing is None:
+            session.add(
+                NoteTweet(
+                    note_tweet_id=note_id,
+                    created_at=str(note.get("createdAt", "")),
+                    updated_at=str(note.get("updatedAt", "")),
+                    lifecycle=note.get("lifecycle") or {},
+                    core=note.get("core") or {},
+                )
             )
-        )
-        counts["note_tweet"] += 1
+            counts["note_tweet"] += 1
+        else:
+            existing.created_at = str(note.get("createdAt", ""))
+            existing.updated_at = str(note.get("updatedAt", ""))
+            existing.lifecycle = note.get("lifecycle") or {}
+            existing.core = note.get("core") or {}
         note_counter += 1
         commit_if_needed(note_counter)
 
@@ -490,14 +741,21 @@ def import_archive_data(
         tweet_id = str(like.get("tweetId", ""))
         if not tweet_id:
             continue
-        session.add(
-            Like(
-                tweet_id=tweet_id,
-                full_text=like.get("fullText"),
-                expanded_url=like.get("expandedUrl"),
+        existing = session.exec(
+            select(Like).where(Like.tweet_id == tweet_id).limit(1)
+        ).first()
+        if existing is None:
+            session.add(
+                Like(
+                    tweet_id=tweet_id,
+                    full_text=like.get("fullText"),
+                    expanded_url=like.get("expandedUrl"),
+                )
             )
-        )
-        counts["like"] += 1
+            counts["like"] += 1
+        else:
+            existing.full_text = like.get("fullText")
+            existing.expanded_url = like.get("expandedUrl")
         like_counter += 1
         commit_if_needed(like_counter)
 
@@ -507,13 +765,14 @@ def import_archive_data(
         account_id = str(follower.get("accountId", ""))
         if not account_id:
             continue
-        session.add(
-            Follower(
-                account_id=account_id,
-                user_link=str(follower.get("userLink", "")),
-            )
-        )
-        counts["follower"] += 1
+        user_link = str(follower.get("userLink", ""))
+        if not _exists(
+            session,
+            Follower,
+            [Follower.account_id == account_id, Follower.user_link == user_link],
+        ):
+            session.add(Follower(account_id=account_id, user_link=user_link))
+            counts["follower"] += 1
         follower_counter += 1
         commit_if_needed(follower_counter)
 
@@ -523,13 +782,14 @@ def import_archive_data(
         account_id = str(following.get("accountId", ""))
         if not account_id:
             continue
-        session.add(
-            Following(
-                account_id=account_id,
-                user_link=str(following.get("userLink", "")),
-            )
-        )
-        counts["following"] += 1
+        user_link = str(following.get("userLink", ""))
+        if not _exists(
+            session,
+            Following,
+            [Following.account_id == account_id, Following.user_link == user_link],
+        ):
+            session.add(Following(account_id=account_id, user_link=user_link))
+            counts["following"] += 1
         following_counter += 1
         commit_if_needed(following_counter)
 
