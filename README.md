@@ -29,7 +29,7 @@ uv tool install -U git+https://github.com/Promptly-Technologies-LLC/birdapp.git
 After installation, you can use:
 
 ```bash
-birdapp config
+birdapp auth config
 birdapp tweet --text "Hello world!"
 ```
 
@@ -51,7 +51,7 @@ In the dashboard, you will need to create an application. Make sure your applica
 Run the configuration command to set up your credentials:
 
 ```bash
-birdapp config
+birdapp auth config --oauth1 # or --oauth2
 ```
 
 This will prompt you for your Twitter API credentials and store them securely in `~/.config/birdapp/config.json`.
@@ -59,8 +59,25 @@ This will prompt you for your Twitter API credentials and store them securely in
 To view your current configuration (without showing secrets):
 
 ```bash
-birdapp config --show
+birdapp auth config --show
 ```
+
+### Auth Flows
+
+Birdapp supports both OAuth1 and OAuth2. Choose based on your security posture and how
+your X app is registered.
+
+OAuth1:
+- No separate login step once configured.
+- Stores app key/secret and user access token/secret locally.
+- Configuration is single-account (one set of tokens at a time).
+
+OAuth2 (Authorization Code with PKCE):
+- Requires a separate login step.
+- Tokens are stored per user id (multiple accounts supported).
+- `auth whoami` defaults to the first stored token unless `--user-id` is provided.
+- If `X_OAUTH2_CLIENT_SECRET` is set, the client behaves as confidential; otherwise it
+  uses public PKCE and avoids storing an app secret. The user experience is the same for both flows, but you may need to use the confidential flow if you registered your app as confidential.
 
 ### OAuth2 (User Context)
 
@@ -74,19 +91,19 @@ OAuth2 uses Authorization Code with PKCE. Configure these environment variables:
 You can set these via the config workflow:
 
 ```bash
-birdapp config --oauth2
+birdapp auth config --oauth2
 ```
 
 To authenticate and store a token:
 
 ```bash
-birdapp oauth2 login
+birdapp auth login
 ```
 
 To verify the token:
 
 ```bash
-birdapp oauth2 whoami
+birdapp auth whoami
 ```
 
 For development fixture capture:
@@ -184,7 +201,7 @@ To see help for a specific command:
 
 ```bash
 birdapp tweet --help
-birdapp config --help
+birdapp auth --help
 birdapp get --help
 birdapp user --help
 ```

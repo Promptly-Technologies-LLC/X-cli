@@ -214,16 +214,16 @@ def oauth2_whoami(user_id: str | None = None) -> dict[str, Any]:
         sessions_dir = get_sessions_dir()
         tokens_path = os.path.join(sessions_dir, "tokens.json")
         if not os.path.exists(tokens_path):
-            raise RuntimeError("No OAuth2 tokens stored. Run `birdapp oauth2 login` first.")
+            raise RuntimeError("No OAuth2 tokens stored. Run `birdapp auth login` first.")
 
         with open(tokens_path, "r") as f:
             tokens = f.read().strip()
         if not tokens:
-            raise RuntimeError("No OAuth2 tokens stored. Run `birdapp oauth2 login` first.")
+            raise RuntimeError("No OAuth2 tokens stored. Run `birdapp auth login` first.")
 
         tokens_data = json.loads(tokens)
         if not tokens_data:
-            raise RuntimeError("No OAuth2 tokens stored. Run `birdapp oauth2 login` first.")
+            raise RuntimeError("No OAuth2 tokens stored. Run `birdapp auth login` first.")
 
         first_user_id = next(iter(tokens_data.keys()))
         token = tokens_data[first_user_id]
