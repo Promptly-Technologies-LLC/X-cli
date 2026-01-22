@@ -7,16 +7,6 @@ from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT_DIR)
-
-from x_cli.oauth2 import (
-    build_authorize_url,
-    create_pkce_pair,
-    exchange_code_for_token,
-    get_user_me,
-    write_oauth2_fixtures,
-)
-from x_cli.session import save_token
 
 def _load_dotenv(path: str) -> None:
     if not os.path.exists(path):
@@ -72,6 +62,18 @@ def _wait_for_callback(redirect_uri: str, timeout_seconds: int = 180) -> dict[st
     return result
 
 def main() -> None:
+    if ROOT_DIR not in sys.path:
+        sys.path.insert(0, ROOT_DIR)
+
+    from x_cli.oauth2 import (
+        build_authorize_url,
+        create_pkce_pair,
+        exchange_code_for_token,
+        get_user_me,
+        write_oauth2_fixtures,
+    )
+    from x_cli.session import save_token
+
     parser = argparse.ArgumentParser(description="Capture OAuth2 fixtures for tests")
     parser.add_argument("--json", action="store_true", help="Print /2/users/me payload")
     parser.add_argument("--timeout", type=int, default=180, help="Callback timeout in seconds")

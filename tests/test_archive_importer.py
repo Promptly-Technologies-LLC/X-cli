@@ -1,4 +1,5 @@
 import unittest
+from typing import Any, cast
 from copy import deepcopy
 
 from sqlmodel import Session, select
@@ -96,7 +97,6 @@ class TestArchiveImporter(unittest.TestCase):
                         "retweet_count": "2",
                         "id": "111",
                         "in_reply_to_status_id": None,
-                        "created_at": "2023-05-01T00:00:00.000Z",
                         "favorited": False,
                         "full_text": "hello",
                         "lang": "en",
@@ -199,6 +199,7 @@ class TestArchiveImporter(unittest.TestCase):
 
             tweet = session.get(Tweet, "111")
             self.assertIsNotNone(tweet)
+            tweet = cast(Tweet, tweet)
             self.assertEqual(tweet.favorite_count, 5)
             self.assertEqual(tweet.retweet_count, 2)
             self.assertEqual(tweet.display_text_range, [0, 10])
@@ -363,7 +364,14 @@ class TestArchiveImporter(unittest.TestCase):
         }
 
         second_data = deepcopy(base_data)
-        second_data["tweets"].append(
+        tweets = cast(list[dict[str, Any]], second_data["tweets"])
+        community_tweets = cast(list[dict[str, Any]], second_data["community-tweet"])
+        note_tweets = cast(list[dict[str, Any]], second_data["note-tweet"])
+        likes = cast(list[dict[str, Any]], second_data["like"])
+        followers = cast(list[dict[str, Any]], second_data["follower"])
+        following = cast(list[dict[str, Any]], second_data["following"])
+
+        tweets.append(
             {
                 "tweet": {
                     "created_at": "2023-07-01T00:00:00.000Z",
@@ -382,7 +390,7 @@ class TestArchiveImporter(unittest.TestCase):
                 }
             }
         )
-        second_data["community-tweet"].append(
+        community_tweets.append(
             {
                 "tweet": {
                     "created_at": "2023-07-02T00:00:00.000Z",
@@ -404,7 +412,7 @@ class TestArchiveImporter(unittest.TestCase):
                 }
             }
         )
-        second_data["note-tweet"].append(
+        note_tweets.append(
             {
                 "noteTweet": {
                     "noteTweetId": "nt2",
@@ -427,13 +435,13 @@ class TestArchiveImporter(unittest.TestCase):
                 }
             }
         )
-        second_data["like"].append(
+        likes.append(
             {"like": {"tweetId": "334", "fullText": "liked2", "expandedUrl": "https://x.com/2"}}
         )
-        second_data["follower"].append(
+        followers.append(
             {"follower": {"accountId": "11", "userLink": "https://x.com/13"}}
         )
-        second_data["following"].append(
+        following.append(
             {"following": {"accountId": "12", "userLink": "https://x.com/14"}}
         )
 

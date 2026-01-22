@@ -1,7 +1,12 @@
 import argparse
 import json
 from .tweet import post_tweet, get_tweets_by_ids
-from .config import prompt_for_credentials, prompt_for_oauth2_credentials, show_config
+from .config import (
+    get_credential,
+    prompt_for_credentials,
+    prompt_for_oauth2_credentials,
+    show_config,
+)
 from .oauth2 import oauth2_login_flow, oauth2_whoami
 from .storage.importer import import_archive
 from .user import (
@@ -223,9 +228,12 @@ def main():
     # Handle import-archive command
     if args.command == 'import-archive':
         try:
+            username = args.username
+            if not username and not args.url and not args.path:
+                username = get_credential("X_USERNAME")
             result = import_archive(
                 args.db,
-                username=args.username,
+                username=username,
                 url=args.url,
                 path=args.path,
                 batch_size=args.batch_size,
