@@ -1,7 +1,7 @@
 import argparse
 import json
 from .tweet import post_tweet, get_tweets_by_ids
-from .config import prompt_for_credentials, show_config
+from .config import prompt_for_credentials, prompt_for_oauth2_credentials, show_config
 from .oauth2 import oauth2_login_flow, oauth2_whoami
 from .storage.importer import import_archive
 from .user import (
@@ -18,6 +18,7 @@ def main():
     # Config subcommand
     config_parser = subparsers.add_parser('config', help='Configure Twitter API credentials')
     config_parser.add_argument('--show', action='store_true', help='Show current configuration')
+    config_parser.add_argument('--oauth2', action='store_true', help='Configure OAuth2 credentials')
     
     # Tweet subcommand
     tweet_parser = subparsers.add_parser('tweet', help='Post a tweet')
@@ -91,6 +92,8 @@ def main():
     if args.command == 'config':
         if args.show:
             show_config()
+        elif args.oauth2:
+            prompt_for_oauth2_credentials()
         else:
             prompt_for_credentials()
         return

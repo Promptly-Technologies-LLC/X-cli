@@ -62,6 +62,39 @@ To view your current configuration (without showing secrets):
 x-cli config --show
 ```
 
+### OAuth2 (User Context)
+
+OAuth2 uses Authorization Code with PKCE. Configure these environment variables:
+
+- `X_OAUTH2_CLIENT_ID`
+- `X_OAUTH2_REDIRECT_URI` (must match your app's callback URL)
+- `X_OAUTH2_SCOPES` (optional, default: `tweet.read users.read offline.access`)
+- `X_OAUTH2_CLIENT_SECRET` (optional, only for confidential clients)
+
+You can set these via the config workflow:
+
+```bash
+x-cli config --oauth2
+```
+
+To authenticate and store a token:
+
+```bash
+x-cli oauth2 login
+```
+
+To verify the token:
+
+```bash
+x-cli oauth2 whoami
+```
+
+For development fixture capture:
+
+```bash
+uv run tests/capture_oauth2_fixtures.py
+```
+
 ## Usage
 
 ### Posting Tweets

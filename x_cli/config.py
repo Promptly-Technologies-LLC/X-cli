@@ -49,7 +49,7 @@ def prompt_for_credentials() -> None:
     print("(Sensitive fields will be hidden as you type)")
     print()
     
-    credentials = {}
+    credentials = load_config()
     
     # Prompt for each credential (hide sensitive fields)
     credentials['X_API_KEY'] = getpass.getpass("API Key: ").strip()
@@ -86,3 +86,37 @@ def show_config() -> None:
     print(f"  API Secret: {'*' * len(config.get('X_API_SECRET', '')) if config.get('X_API_SECRET') else 'Not set'}")
     print(f"  Access Token: {'*' * len(config.get('X_ACCESS_TOKEN', '')) if config.get('X_ACCESS_TOKEN') else 'Not set'}")
     print(f"  Access Token Secret: {'*' * len(config.get('X_ACCESS_TOKEN_SECRET', '')) if config.get('X_ACCESS_TOKEN_SECRET') else 'Not set'}")
+    print("  OAuth2 Client ID: " + ("Set" if config.get("X_OAUTH2_CLIENT_ID") else "Not set"))
+    print("  OAuth2 Client Secret: " + ("Set" if config.get("X_OAUTH2_CLIENT_SECRET") else "Not set"))
+    print("  OAuth2 Redirect URI: " + (config.get("X_OAUTH2_REDIRECT_URI") or "Not set"))
+    print("  OAuth2 Scopes: " + (config.get("X_OAUTH2_SCOPES") or "Not set"))
+
+def prompt_for_oauth2_credentials() -> None:
+    """Prompt user for OAuth2 credentials and save them."""
+    print("X CLI OAuth2 Configuration")
+    print("==========================")
+    print("Configure OAuth2 (Authorization Code with PKCE).")
+    print("You can get these from your app settings in the X developer console.")
+    print()
+
+    config = load_config()
+    config["X_OAUTH2_CLIENT_ID"] = input("OAuth2 Client ID: ").strip()
+    client_secret = getpass.getpass("OAuth2 Client Secret (optional): ").strip()
+    if client_secret:
+        config["X_OAUTH2_CLIENT_SECRET"] = client_secret
+    config["X_OAUTH2_REDIRECT_URI"] = input("OAuth2 Redirect URI: ").strip()
+    scopes = input("OAuth2 Scopes (space-separated, optional): ").strip()
+    if scopes:
+        config["X_OAUTH2_SCOPES"] = scopes
+
+    missing = [key for key in ("X_OAUTH2_CLIENT_ID", "X_OAUTH2_REDIRECT_URI") if not config.get(key)]
+    if missing:
+        print(f"\nError: Missing required fields: {', '.join(missing)}")
+        return
+
+    try:
+        save_config(config)
+        config_path = get_config_path()
+        print(f"\n✅ OAuth2 configuration saved to {config_path}")
+    except RuntimeError as e:
+        print(f"\n❌ {e}")
