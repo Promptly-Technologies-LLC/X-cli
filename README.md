@@ -35,16 +35,33 @@ birdapp tweet --text "Hello world!"
 
 ## Configuration
 
-### Getting Twitter API Credentials
+There are two login flows available through birdapp: OAuth1 and OAuth2. Both require [creating an X "app" in the X Developer Dashboard](https://developer.x.com/en/portal/projects-and-apps). Once you've created your app, click the "Keys and Tokens" button for the app to generate authentication credentials.
 
-Before you can use the CLI, you need to configure your Twitter API credentials. To do this, you need to [sign up for a Twitter/X developer account](https://developer.twitter.com/).
+With OAuth1, you generate "Consumer Keys" ("API Key and Secret") and "Authentication Tokens" ("Access Token and Secret") that provide API access to a single X account. Store these in your birdapp config, and they work forever.
 
-In the dashboard, you will need to create an application. Make sure your application has "Read and Write" permissions. From your application's "Keys and Tokens" section in the developer dashboard, generate:
+With OAuth2, you generate an "OAuth 2.0 Client ID and Client Secret" for your X app, store these app secrets in your birdapp config, and login to your X accounts via a two-step flow that involves authorizing the app per-account in your browser.
 
-- API Key
-- API Secret  
-- Access Token
-- Access Token Secret
+In general, OAuth1 is simpler for tweeting from a single account, while OAuth2 is better for tweeting from multiple accounts. (With OAuth1 you would need a separate developer account for each account you want to use.)
+
+OAuth2 is also generally more secure, because it doesn't involve storing secrets that could give an attacker permanent and sweeping access to your account.
+
+### Setting Up Credentials
+
+Run the configuration command to set up your credentials: `birdapp auth config`
+
+- Choose OAuth1 or OAuth2 based on your app registration and security posture.
+- OAuth1: run `birdapp auth config --oauth1` per profile.
+- OAuth2: run `birdapp auth config --oauth2` once, then `birdapp auth login` per account.
+  - Optional: `birdapp auth whoami` to verify the token after login.
+
+This will prompt you for your Twitter API credentials and store them securely in
+`~/.config/birdapp/config.json`.
+
+To view your current configuration status (without showing secrets):
+
+```bash
+birdapp auth config --show
+```
 
 ### Profiles
 
@@ -56,102 +73,9 @@ How profiles are created:
 - OAuth2: created when you run `birdapp auth login` (the username comes from the login).
 
 How profiles are selected:
-- The active profile is set by `birdapp profile use <username>`.
-- `--profile <username>` overrides the active profile for a single command.
-
-Commands:
-```bash
-birdapp auth config --oauth1          # creates/updates profile after you enter a username
-birdapp auth config --oauth2          # configures shared OAuth2 app credentials
-birdapp auth login                    # creates/updates profile after OAuth2 login
-birdapp profile list
-birdapp profile use yourusername
-birdapp profile show yourusername
-```
-
-### Setting Up Credentials
-
-Run the configuration command to set up your credentials:
-
-```bash
-birdapp auth config --oauth1 # or --oauth2
-```
-
-Required:
-- OAuth1: run `birdapp auth config --oauth1` per profile.
-- OAuth2: run `birdapp auth config --oauth2` once, then `birdapp auth login` per account.
-- Choose OAuth1 or OAuth2 based on your app registration and security posture.
-
-Optional:
-- Use `--profile <username>` to configure a specific profile without switching.
-
-This will prompt you for your Twitter API credentials and store them securely in
-`~/.config/birdapp/config.json`.
-
-To view your current configuration (without showing secrets):
-
-```bash
-birdapp auth config --show
-```
-
-### Auth Flows
-
-Birdapp supports both OAuth1 and OAuth2. Choose based on your security posture and how
-your X app is registered.
-
-OAuth1:
-- Required: `birdapp auth config --oauth1`
-- Optional: None (no separate login step)
-- Stores app key/secret and user access token/secret locally.
-- Best when you want direct user tokens and minimal steps.
-
-OAuth2 (Authorization Code with PKCE):
-- Required: `birdapp auth config --oauth2` (app config), then `birdapp auth login` (profile creation)
-- Optional: `birdapp auth whoami` to verify the token
-- Tokens are stored per profile and user id (multiple accounts supported).
-- `auth whoami` uses the active profile unless `--profile` or `--user-id` is provided.
-- If `X_OAUTH2_CLIENT_SECRET` is set, the client behaves as confidential; otherwise it
-  uses public PKCE and avoids storing an app secret. The user experience is the same for both flows, but you may need to use the confidential flow if you registered your app as confidential.
-
-### OAuth2 (User Context)
-
-OAuth2 uses Authorization Code with PKCE. Configure these environment variables:
-
-- `X_OAUTH2_CLIENT_ID`
-- `X_OAUTH2_REDIRECT_URI` (must match your app's callback URL)
-- `X_OAUTH2_SCOPES` (optional, default: `tweet.read users.read offline.access`)
-- `X_OAUTH2_CLIENT_SECRET` (optional, only for confidential clients)
-
-You can set these via the config workflow:
-
-```bash
-birdapp auth config --oauth2
-```
-
-Required:
-- `birdapp auth config --oauth2` (shared app config)
-- `birdapp auth login` (creates the profile and stores tokens)
-
-Optional:
-- `birdapp auth whoami`
-
-To authenticate and store a token:
-
-```bash
-birdapp auth login
-```
-
-To verify the token:
-
-```bash
-birdapp auth whoami
-```
-
-For development fixture capture:
-
-```bash
-uv run tests/capture_oauth2_fixtures.py
-```
+- Set the active profile with `birdapp profile use <username>`.
+- Use `--profile <username>` to override the active profile for a single command.
+- To list available profiles, run `birdapp profile list`.
 
 ## Usage
 
@@ -246,3 +170,27 @@ birdapp auth --help
 birdapp get --help
 birdapp user --help
 ```
+## Contributing
+
+Pull requests are welcome! Please open an issue first to discuss any changes you want to make.
+
+To run the tests, first capture test fixtures:
+
+```bash
+uv run tests/capture_oauth2_fixtures.py
+```
+
+Then run the tests:
+
+```bash
+uv run pytest
+```
+
+To lint and type check:
+
+```bash
+uv run ruff check --fix
+uv run ty check
+```
+
+Commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
