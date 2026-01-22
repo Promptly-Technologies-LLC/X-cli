@@ -1,0 +1,6 @@
+---
+alwaysApply: true
+---
+Always run Python code with `uv run`.
+
+Write statically typed Python and run lint and type checks with `uv run ruff check --fix` and `uv run ty check`.
