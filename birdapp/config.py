@@ -6,7 +6,7 @@ from typing import Dict, Optional
 
 def get_config_path() -> Path:
     """Get the path to the user-level config file."""
-    config_dir = Path.home() / ".config" / "x-cli"
+    config_dir = Path.home() / ".config" / "birdapp"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir / "config.json"
 
@@ -77,7 +77,7 @@ def show_config() -> None:
     """Show current configuration (without secrets)."""
     config = load_config()
     if not config:
-        print("No configuration found. Run 'x-cli config' to set up credentials.")
+        print("No configuration found. Run 'birdapp config' to set up credentials.")
         return
     
     print("Current configuration:")

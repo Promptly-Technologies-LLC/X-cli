@@ -80,7 +80,7 @@ def main():
         '--db',
         type=str,
         default=None,
-        help='Database URL (default: ~/.local/share/x-cli/x_cli.db)',
+        help='Database URL (default: ~/.local/share/birdapp/birdapp.db)',
     )
     import_parser.add_argument(
         '--batch-size',

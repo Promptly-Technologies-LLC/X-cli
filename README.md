@@ -1,4 +1,4 @@
-# X CLI
+# Birdapp: a Twitter/X CLI tool
 
 A command-line tool for posting tweets to Twitter/X from the command line.
 
@@ -23,14 +23,14 @@ Consult the [uv installation docs](https://astral.sh/uv/) for more detailed inst
 You can install the CLI tool globally using uv:
 
 ```bash
-uv tool install -U git+https://github.com/Promptly-Technologies-LLC/X-cli.git
+uv tool install -U git+https://github.com/Promptly-Technologies-LLC/birdapp.git
 ```
 
 After installation, you can use:
 
 ```bash
-x-cli config
-x-cli tweet --text "Hello world!"
+birdapp config
+birdapp tweet --text "Hello world!"
 ```
 
 ## Configuration
@@ -51,15 +51,15 @@ In the dashboard, you will need to create an application. Make sure your applica
 Run the configuration command to set up your credentials:
 
 ```bash
-x-cli config
+birdapp config
 ```
 
-This will prompt you for your Twitter API credentials and store them securely in `~/.config/x-cli/config.json`.
+This will prompt you for your Twitter API credentials and store them securely in `~/.config/birdapp/config.json`.
 
 To view your current configuration (without showing secrets):
 
 ```bash
-x-cli config --show
+birdapp config --show
 ```
 
 ### OAuth2 (User Context)
@@ -74,19 +74,19 @@ OAuth2 uses Authorization Code with PKCE. Configure these environment variables:
 You can set these via the config workflow:
 
 ```bash
-x-cli config --oauth2
+birdapp config --oauth2
 ```
 
 To authenticate and store a token:
 
 ```bash
-x-cli oauth2 login
+birdapp oauth2 login
 ```
 
 To verify the token:
 
 ```bash
-x-cli oauth2 whoami
+birdapp oauth2 whoami
 ```
 
 For development fixture capture:
@@ -102,19 +102,19 @@ uv run tests/capture_oauth2_fixtures.py
 To post a tweet:
 
 ```bash
-x-cli tweet --text "Your tweet content here"
+birdapp tweet --text "Your tweet content here"
 ```
 
 To post a tweet with media:
 
 ```bash
-x-cli tweet --text "Check out this image!" --media /path/to/image.jpg
+birdapp tweet --text "Check out this image!" --media /path/to/image.jpg
 ```
 
 To post a media-only tweet (no text):
 
 ```bash
-x-cli tweet --media /path/to/image.jpg
+birdapp tweet --media /path/to/image.jpg
 ```
 
 ### Replying to Tweets
@@ -122,19 +122,19 @@ x-cli tweet --media /path/to/image.jpg
 To reply to a tweet using its ID:
 
 ```bash
-x-cli tweet --text "Great point!" --reply-to 1234567890
+birdapp tweet --text "Great point!" --reply-to 1234567890
 ```
 
 To reply to a tweet using its URL:
 
 ```bash
-x-cli tweet --text "I agree!" --reply-to "https://x.com/user/status/1234567890"
+birdapp tweet --text "I agree!" --reply-to "https://x.com/user/status/1234567890"
 ```
 
 You can also include media in replies:
 
 ```bash
-x-cli tweet --text "Here's my response" --media /path/to/image.jpg --reply-to 1234567890
+birdapp tweet --text "Here's my response" --media /path/to/image.jpg --reply-to 1234567890
 ```
 
 ### Getting Tweets
@@ -142,9 +142,9 @@ x-cli tweet --text "Here's my response" --media /path/to/image.jpg --reply-to 12
 To retrieve tweets by ID (up to 100 at a time):
 
 ```bash
-x-cli get 1234567890
-x-cli get 1234567890 9876543210 --format detailed
-x-cli get 1234567890 --json
+birdapp get 1234567890
+birdapp get 1234567890 9876543210 --format detailed
+birdapp get 1234567890 --json
 ```
 
 ### Looking Up Users
@@ -152,10 +152,10 @@ x-cli get 1234567890 --json
 To look up users by username or ID (up to 100 at a time):
 
 ```bash
-x-cli user elonmusk
-x-cli user @nasa @spacex
-x-cli user 44196397 --by-id
-x-cli user elonmusk --format detailed --fields public_metrics created_at
+birdapp user elonmusk
+birdapp user @nasa @spacex
+birdapp user 44196397 --by-id
+birdapp user elonmusk --format detailed --fields public_metrics created_at
 ```
 
 ### Importing your tweets from the Twitter Community Archive
@@ -163,13 +163,13 @@ x-cli user elonmusk --format detailed --fields public_metrics created_at
 If you have shared your tweets with the public via the Twitter Community Archive, you can download them from the archive and import them into a SQLite database for local search and analysis:
 
 ```bash
-x-cli import-archive --username yourusername
+birdapp import-archive --username yourusername
 ```
 
 If you've already downloaded your archive.json file, you can import it from a local file:
 
 ```bash
-x-cli import-archive --path /path/to/archive.json
+birdapp import-archive --path /path/to/archive.json
 ```
 
 ### Help
@@ -177,14 +177,14 @@ x-cli import-archive --path /path/to/archive.json
 To see all available commands:
 
 ```bash
-x-cli --help
+birdapp --help
 ```
 
 To see help for a specific command:
 
 ```bash
-x-cli tweet --help
-x-cli config --help
-x-cli get --help
-x-cli user --help
+birdapp tweet --help
+birdapp config --help
+birdapp get --help
+birdapp user --help
 ```

@@ -1,5 +1,5 @@
 [project]
-name = "x-cli"
+name = "birdapp"
 version = "0.1.0"
 description = "A CLI tool for generating and posting tweets using LLMs and the Twitter/X API"
 readme = "README.md"
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-x-cli = "x_cli.main:main"
+birdapp = "birdapp.main:main"
 
 [dependency-groups]
 dev = [

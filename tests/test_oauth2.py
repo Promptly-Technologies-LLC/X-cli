@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
 
-from x_cli import oauth2
+from birdapp import oauth2
 
 def _base64url_encode(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
@@ -52,7 +52,7 @@ class TestOAuth2(unittest.TestCase):
             "token_type": "bearer",
         }
 
-        with patch("x_cli.oauth2.requests.post", return_value=response) as post:
+        with patch("birdapp.oauth2.requests.post", return_value=response) as post:
             token = oauth2.exchange_code_for_token(
                 code="code123",
                 code_verifier="verifier123",
@@ -70,7 +70,7 @@ class TestOAuth2(unittest.TestCase):
         response.ok = True
         response.json.return_value = {"data": {"id": "1", "username": "user"}}
 
-        with patch("x_cli.oauth2.requests.get", return_value=response) as get:
+        with patch("birdapp.oauth2.requests.get", return_value=response) as get:
             payload = oauth2.get_user_me(access_token="access-token")
             get.assert_called_once()
 

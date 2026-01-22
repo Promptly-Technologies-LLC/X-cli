@@ -4,9 +4,9 @@ from copy import deepcopy
 
 from sqlmodel import Session, select
 
-from x_cli.storage.db import get_engine, init_db
-from x_cli.storage.importer import build_archive_url, import_archive_data
-from x_cli.storage.models import (
+from birdapp.storage.db import get_engine, init_db
+from birdapp.storage.importer import build_archive_url, import_archive_data
+from birdapp.storage.models import (
     Like,
     NoteTweet,
     Tweet,

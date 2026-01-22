@@ -65,14 +65,14 @@ def main() -> None:
     if ROOT_DIR not in sys.path:
         sys.path.insert(0, ROOT_DIR)
 
-    from x_cli.oauth2 import (
+    from birdapp.oauth2 import (
         build_authorize_url,
         create_pkce_pair,
         exchange_code_for_token,
         get_user_me,
         write_oauth2_fixtures,
     )
-    from x_cli.session import save_token
+    from birdapp.session import save_token
 
     parser = argparse.ArgumentParser(description="Capture OAuth2 fixtures for tests")
     parser.add_argument("--json", action="store_true", help="Print /2/users/me payload")

@@ -6,9 +6,9 @@ from sqlmodel import SQLModel, Session, create_engine
 
 
 def get_default_db_url() -> str:
-    data_dir = Path(user_data_dir("x-cli"))
+    data_dir = Path(user_data_dir("birdapp"))
     data_dir.mkdir(parents=True, exist_ok=True)
-    return f"sqlite:///{data_dir / 'x_cli.db'}"
+    return f"sqlite:///{data_dir / 'birdapp.db'}"
 
 
 def get_engine(db_url: str, *, echo: bool = False) -> Engine:
