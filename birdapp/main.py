@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 from .tweet import post_tweet, get_tweets_by_ids
 from .config import (
     get_credential,
@@ -15,16 +16,66 @@ from .user import (
     AVAILABLE_USER_FIELDS, AVAILABLE_EXPANSIONS, AVAILABLE_TWEET_FIELDS
 )
 
-def main():
+def _get_env_or_config(key: str) -> str | None:
+    return os.getenv(key) or get_credential(key)
+
+
+def _has_oauth1_credentials() -> bool:
+    return all(
+        _get_env_or_config(key)
+        for key in (
+            "X_API_KEY",
+            "X_API_SECRET",
+            "X_ACCESS_TOKEN",
+            "X_ACCESS_TOKEN_SECRET",
+        )
+    )
+
+
+def _has_oauth2_config() -> bool:
+    return bool(
+        _get_env_or_config("X_OAUTH2_CLIENT_ID")
+        and _get_env_or_config("X_OAUTH2_REDIRECT_URI")
+    )
+
+
+def _prompt_for_auth_flow() -> str:
+    print("Select authentication flow:")
+    print("  1) OAuth1 (user tokens)")
+    print("  2) OAuth2 (authorization code with PKCE)")
+    while True:
+        choice = input("Choose 1 or 2 (oauth1/oauth2): ").strip().lower()
+        if choice in {"1", "oauth1", "oauth 1"}:
+            return "oauth1"
+        if choice in {"2", "oauth2", "oauth 2"}:
+            return "oauth2"
+        print("Please enter 1 or 2.")
+
+
+def main() -> None:
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(description="X CLI - Post tweets from the command line")
-    subparsers = parser.add_subparsers(dest='command', help='Available commands', required=True)
-    
-    # Config subcommand
-    config_parser = subparsers.add_parser('config', help='Configure Twitter API credentials')
-    config_parser.add_argument('--show', action='store_true', help='Show current configuration')
-    config_parser.add_argument('--oauth2', action='store_true', help='Configure OAuth2 credentials')
-    
+    subparsers = parser.add_subparsers(dest="command", help="Available commands", required=True)
+
+    # Auth subcommand
+    auth_parser = subparsers.add_parser("auth", help="Authentication and credential management")
+    auth_subparsers = auth_parser.add_subparsers(dest="auth_command", required=True)
+
+    auth_config_parser = auth_subparsers.add_parser("config", help="Configure authentication")
+    auth_config_parser.add_argument("--show", action="store_true", help="Show current configuration")
+    auth_flow_group = auth_config_parser.add_mutually_exclusive_group()
+    auth_flow_group.add_argument("--oauth1", action="store_true", help="Configure OAuth1 credentials")
+    auth_flow_group.add_argument("--oauth2", action="store_true", help="Configure OAuth2 credentials")
+
+    auth_login_parser = auth_subparsers.add_parser("login", help="Authenticate via OAuth2")
+    auth_login_parser.add_argument("--json", action="store_true", help="Output raw JSON response")
+
+    auth_whoami_parser = auth_subparsers.add_parser("whoami", help="Show authenticated user info")
+    auth_whoami_parser.add_argument(
+        "--user-id", dest="user_id", type=str, help="Use stored token for user id"
+    )
+    auth_whoami_parser.add_argument("--json", action="store_true", help="Output raw JSON response")
+
     # Tweet subcommand
     tweet_parser = subparsers.add_parser('tweet', help='Post a tweet')
     tweet_parser.add_argument('--text', type=str, help='Tweet text to post (optional if media provided)', default="")
@@ -57,17 +108,6 @@ def main():
     user_parser.add_argument('--format', choices=['simple', 'detailed', 'full'], default='simple',
                             help='Output format (simple, detailed, or full)')
 
-    # OAuth2 subcommand
-    oauth2_parser = subparsers.add_parser('oauth2', help='OAuth2 user authentication')
-    oauth2_subparsers = oauth2_parser.add_subparsers(dest='oauth2_command', required=True)
-
-    oauth2_login_parser = oauth2_subparsers.add_parser('login', help='Authenticate via OAuth2')
-    oauth2_login_parser.add_argument('--json', action='store_true', help='Output raw JSON response')
-
-    oauth2_whoami_parser = oauth2_subparsers.add_parser('whoami', help='Show authenticated user info')
-    oauth2_whoami_parser.add_argument('--user-id', dest='user_id', type=str, help='Use stored token for user id')
-    oauth2_whoami_parser.add_argument('--json', action='store_true', help='Output raw JSON response')
-
     # Import archive subcommand
     import_parser = subparsers.add_parser(
         'import-archive',
@@ -93,14 +133,46 @@ def main():
     # Parse arguments
     args = parser.parse_args()
     
-    # Handle config command
-    if args.command == 'config':
-        if args.show:
-            show_config()
-        elif args.oauth2:
-            prompt_for_oauth2_credentials()
+    # Handle auth command
+    if args.command == "auth":
+        if args.auth_command == "config":
+            if args.show:
+                show_config()
+            elif args.oauth1:
+                prompt_for_credentials()
+            elif args.oauth2:
+                prompt_for_oauth2_credentials()
+            else:
+                flow = _prompt_for_auth_flow()
+                if flow == "oauth1":
+                    prompt_for_credentials()
+                else:
+                    prompt_for_oauth2_credentials()
+        elif args.auth_command == "login":
+            if not _has_oauth2_config():
+                if _has_oauth1_credentials():
+                    print("OAuth1 credentials are configured; no login step is required.")
+                else:
+                    print("OAuth2 credentials are not configured. Run `birdapp auth config`.")
+                return
+
+            try:
+                result = oauth2_login_flow()
+                if args.json:
+                    print(json.dumps(result, indent=2))
+                else:
+                    print(json.dumps(result, indent=2))
+            except Exception as e:
+                print(f"❌ Error during OAuth2 flow: {str(e)}")
         else:
-            prompt_for_credentials()
+            try:
+                result = oauth2_whoami(args.user_id)
+                if args.json:
+                    print(json.dumps(result, indent=2))
+                else:
+                    print(json.dumps(result, indent=2))
+            except Exception as e:
+                print(f"❌ Error during OAuth2 flow: {str(e)}")
         return
     
     # Handle tweet command
@@ -209,21 +281,6 @@ def main():
                 
         except Exception as e:
             print(f"❌ Error getting user(s): {str(e)}")
-
-    # Handle oauth2 command
-    if args.command == 'oauth2':
-        try:
-            if args.oauth2_command == 'login':
-                result = oauth2_login_flow()
-            else:
-                result = oauth2_whoami(args.user_id)
-
-            if args.json:
-                print(json.dumps(result, indent=2))
-            else:
-                print(json.dumps(result, indent=2))
-        except Exception as e:
-            print(f"❌ Error during OAuth2 flow: {str(e)}")
 
     # Handle import-archive command
     if args.command == 'import-archive':

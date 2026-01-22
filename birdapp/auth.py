@@ -16,7 +16,7 @@ def create_oauth1_auth() -> OAuth1:
     if missing_vars:
         raise ValueError(
             f"Missing required credentials: {', '.join(missing_vars)}. "
-            "Run 'uv run main.py config' to set up your Twitter API credentials."
+            "Run `birdapp auth config --oauth1` to set up your credentials."
         )
     
     return OAuth1(
