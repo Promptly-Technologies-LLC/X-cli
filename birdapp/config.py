@@ -77,7 +77,7 @@ def show_config() -> None:
     """Show current configuration (without secrets)."""
     config = load_config()
     if not config:
-        print("No configuration found. Run 'birdapp config' to set up credentials.")
+        print("No configuration found. Run `birdapp auth config` to set up credentials.")
         return
     
     print("Current configuration:")

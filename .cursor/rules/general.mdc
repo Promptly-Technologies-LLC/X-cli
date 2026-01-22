@@ -4,3 +4,5 @@ alwaysApply: true
 Always run Python code with `uv run`.
 
 Write statically typed Python and run lint and type checks with `uv run ruff check --fix` and `uv run ty check`.
+
+Practice test-driven development. Always write tests first, verify they fail for the right reasons (RED), then write the code to make them pass (GREEN), then refactor to clean up the code.
