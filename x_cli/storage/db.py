@@ -1,5 +1,14 @@
+from pathlib import Path
+
+from platformdirs import user_data_dir
 from sqlalchemy.engine import Engine
 from sqlmodel import SQLModel, Session, create_engine
+
+
+def get_default_db_url() -> str:
+    data_dir = Path(user_data_dir("x-cli"))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return f"sqlite:///{data_dir / 'x_cli.db'}"
 
 
 def get_engine(db_url: str, *, echo: bool = False) -> Engine:

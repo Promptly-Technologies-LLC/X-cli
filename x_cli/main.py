@@ -74,8 +74,8 @@ def main():
     import_parser.add_argument(
         '--db',
         type=str,
-        default='sqlite:///x_cli.db',
-        help='Database URL (default: sqlite:///x_cli.db)',
+        default=None,
+        help='Database URL (default: ~/.local/share/x-cli/x_cli.db)',
     )
     import_parser.add_argument(
         '--batch-size',

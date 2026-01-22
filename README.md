@@ -158,6 +158,20 @@ x-cli user 44196397 --by-id
 x-cli user elonmusk --format detailed --fields public_metrics created_at
 ```
 
+### Importing your tweets from the Twitter Community Archive
+
+If you have shared your tweets with the public via the Twitter Community Archive, you can download them from the archive and import them into a SQLite database for local search and analysis:
+
+```bash
+x-cli import-archive --username yourusername
+```
+
+If you've already downloaded your archive.json file, you can import it from a local file:
+
+```bash
+x-cli import-archive --path /path/to/archive.json
+```
+
 ### Help
 
 To see all available commands:
