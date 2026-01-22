@@ -2,6 +2,8 @@ import argparse
 import json
 from .tweet import post_tweet, get_tweets_by_ids
 from .config import prompt_for_credentials, show_config
+from .oauth2 import oauth2_login_flow, oauth2_whoami
+from .storage.importer import import_archive
 from .user import (
     get_user_by_id, get_users_by_ids,
     get_user_by_username, get_users_by_usernames,
@@ -48,6 +50,39 @@ def main():
                             help='Output raw JSON response')
     user_parser.add_argument('--format', choices=['simple', 'detailed', 'full'], default='simple',
                             help='Output format (simple, detailed, or full)')
+
+    # OAuth2 subcommand
+    oauth2_parser = subparsers.add_parser('oauth2', help='OAuth2 user authentication')
+    oauth2_subparsers = oauth2_parser.add_subparsers(dest='oauth2_command', required=True)
+
+    oauth2_login_parser = oauth2_subparsers.add_parser('login', help='Authenticate via OAuth2')
+    oauth2_login_parser.add_argument('--json', action='store_true', help='Output raw JSON response')
+
+    oauth2_whoami_parser = oauth2_subparsers.add_parser('whoami', help='Show authenticated user info')
+    oauth2_whoami_parser.add_argument('--user-id', dest='user_id', type=str, help='Use stored token for user id')
+    oauth2_whoami_parser.add_argument('--json', action='store_true', help='Output raw JSON response')
+
+    # Import archive subcommand
+    import_parser = subparsers.add_parser(
+        'import-archive',
+        help='Import a Twitter Community Archive into a SQLite database',
+    )
+    import_parser.add_argument('--username', type=str, help='Archive username')
+    import_parser.add_argument('--url', type=str, help='Full archive.json URL')
+    import_parser.add_argument('--path', type=str, help='Path to a local archive.json file')
+    import_parser.add_argument(
+        '--db',
+        type=str,
+        default='sqlite:///x_cli.db',
+        help='Database URL (default: sqlite:///x_cli.db)',
+    )
+    import_parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=1000,
+        help='Batch size for inserts (default: 1000)',
+    )
+    import_parser.add_argument('--json', action='store_true', help='Output raw JSON result')
     
     # Parse arguments
     args = parser.parse_args()
@@ -166,6 +201,41 @@ def main():
                 
         except Exception as e:
             print(f"❌ Error getting user(s): {str(e)}")
+
+    # Handle oauth2 command
+    if args.command == 'oauth2':
+        try:
+            if args.oauth2_command == 'login':
+                result = oauth2_login_flow()
+            else:
+                result = oauth2_whoami(args.user_id)
+
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                print(json.dumps(result, indent=2))
+        except Exception as e:
+            print(f"❌ Error during OAuth2 flow: {str(e)}")
+
+    # Handle import-archive command
+    if args.command == 'import-archive':
+        try:
+            result = import_archive(
+                args.db,
+                username=args.username,
+                url=args.url,
+                path=args.path,
+                batch_size=args.batch_size,
+            )
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                total = sum(result.values())
+                print(f"✅ Imported {total} rows")
+                for key, value in result.items():
+                    print(f"{key}: {value}")
+        except Exception as e:
+            print(f"❌ Error importing archive: {str(e)}")
 
 def format_tweets_output(data: dict, format_type: str):
     """Format and display tweet data"""

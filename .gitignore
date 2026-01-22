@@ -6,3 +6,5 @@ sessions/
 .specstory
 *.jpg
 *.egg-info/
+tests/fixtures/oauth2_token.json
+tests/fixtures/oauth2_user.json

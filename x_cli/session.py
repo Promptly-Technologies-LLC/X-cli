@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Mapping
 from requests_oauthlib import OAuth2Session
 from .auth import create_oauth2_session
 
@@ -10,7 +10,7 @@ def get_sessions_dir() -> str:
     os.makedirs(sessions_dir, exist_ok=True)
     return sessions_dir
 
-def save_token(user_id: str, token: Dict[str, Any]) -> None:
+def save_token(user_id: str, token: Mapping[str, Any]) -> None:
     """Save a user's token to the tokens file."""
     sessions_dir = get_sessions_dir()
     tokens_path = os.path.join(sessions_dir, "tokens.json")
