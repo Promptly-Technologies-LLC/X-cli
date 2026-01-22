@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import secrets
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Mapping, NotRequired, Sequence, TypedDict
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
@@ -16,6 +18,46 @@ OAUTH2_AUTHORIZE_URL = "https://x.com/i/oauth2/authorize"
 OAUTH2_TOKEN_URL = "https://api.x.com/2/oauth2/token"
 OAUTH2_ME_URL = "https://api.x.com/2/users/me"
 DEFAULT_FIXTURES_DIR = os.path.join("tests", "fixtures")
+
+
+def wait_for_oauth_callback(redirect_uri: str, timeout_seconds: int = 180) -> dict[str, Any]:
+    """Start local HTTP server and wait for OAuth2 callback."""
+    parsed = urlparse(redirect_uri)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    expected_path = parsed.path or "/"
+    event = threading.Event()
+    result: dict[str, Any] = {}
+
+    def handler_factory() -> type[BaseHTTPRequestHandler]:
+        class OAuthCallbackHandler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                request_path = urlparse(self.path).path
+                if request_path != expected_path:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                params = parse_qs(urlparse(self.path).query)
+                result.update(params)
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(b"OAuth2 callback received. You can close this tab.")
+                event.set()
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
+
+            def log_message(self, format: str, *args: Any) -> None:
+                return
+
+        return OAuthCallbackHandler
+
+    server = HTTPServer((host, port), handler_factory())
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    if not event.wait(timeout_seconds):
+        server.shutdown()
+        raise RuntimeError("Timed out waiting for OAuth2 callback")
+    return result
+
 
 class Token(TypedDict):
     access_token: str
@@ -174,15 +216,14 @@ def oauth2_login_flow(record_fixtures: bool = False) -> dict[str, Any]:
     )
     print("Open this URL in your browser and authorize the app:")
     print(authorize_url)
+    print(f"\nWaiting for callback on {redirect_uri} ...")
 
-    redirect_response = input("Paste the full redirect URL here: ").strip()
-    parsed = urlparse(redirect_response)
-    params = parse_qs(parsed.query)
+    params = wait_for_oauth_callback(redirect_uri=redirect_uri, timeout_seconds=180)
     returned_state = params.get("state", [None])[0]
     code = params.get("code", [None])[0]
 
     if not code or returned_state != state:
-        raise RuntimeError("Invalid OAuth2 redirect URL (missing code or state mismatch)")
+        raise RuntimeError("Invalid OAuth2 callback (missing code or state mismatch)")
 
     token = exchange_code_for_token(
         code=code,
