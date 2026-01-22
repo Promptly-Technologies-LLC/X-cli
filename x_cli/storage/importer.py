@@ -817,6 +817,8 @@ def import_archive(
     if url:
         data = download_archive(url)
     else:
+        if path is None:
+            raise ValueError("Provide username, url, or path.")
         data = load_archive(Path(path))
 
     engine = get_engine(db_url)
