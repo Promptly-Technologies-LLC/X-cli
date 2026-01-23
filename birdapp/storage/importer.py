@@ -72,6 +72,34 @@ def _exists(session: Session, model: type[ModelType], filters: Sequence[Any]) ->
     return session.exec(statement).first() is not None
 
 
+def _get_owner_account_id(data: dict[str, Any]) -> Optional[str]:
+    account_list = data.get("account") or []
+    if not account_list:
+        return None
+    account = (account_list[0] or {}).get("account") or {}
+    account_id = str(account.get("accountId", "")).strip()
+    return account_id or None
+
+
+def _has_owner_scoped_data(data: dict[str, Any]) -> bool:
+    for key in (
+        "upload-options",
+        "profile",
+        "tweets",
+        "community-tweet",
+        "note-tweet",
+        "like",
+        "follower",
+        "following",
+    ):
+        value = data.get(key)
+        if isinstance(value, list) and value:
+            return True
+        if isinstance(value, dict) and value:
+            return True
+    return False
+
+
 def import_archive_data(
     data: dict[str, Any],
     session: Session,
@@ -95,16 +123,27 @@ def import_archive_data(
         "tweet_media": 0,
     }
 
+    owner_account_id = _get_owner_account_id(data)
+    if owner_account_id is None and _has_owner_scoped_data(data):
+        raise ValueError(
+            "Archive owner account id is required to import owner-scoped data."
+        )
+
     def commit_if_needed(counter: int) -> None:
         if counter % batch_size == 0:
             session.commit()
 
     upload_options = data.get("upload-options")
-    if isinstance(upload_options, dict):
-        existing = session.exec(select(UploadOptions).limit(1)).first()
+    if isinstance(upload_options, dict) and owner_account_id is not None:
+        existing = session.exec(
+            select(UploadOptions)
+            .where(UploadOptions.account_id == owner_account_id)
+            .limit(1)
+        ).first()
         if existing is None:
             session.add(
                 UploadOptions(
+                    account_id=owner_account_id,
                     keep_private=bool(upload_options.get("keepPrivate")),
                     upload_likes=bool(upload_options.get("uploadLikes")),
                     start_date=str(upload_options.get("startDate", "")),
@@ -146,17 +185,13 @@ def import_archive_data(
     for item in profile_list:
         profile = item.get("profile") or {}
         description = profile.get("description") or {}
-        account_id = None
-        if account_list:
-            account = (account_list[0] or {}).get("account") or {}
-            account_id = account.get("accountId")
-        if not account_id:
+        if owner_account_id is None:
             continue
-        existing = session.get(Profile, str(account_id))
+        existing = session.get(Profile, owner_account_id)
         if existing is None:
             session.add(
                 Profile(
-                    account_id=str(account_id),
+                    account_id=owner_account_id,
                     bio=str(description.get("bio", "")),
                     website=str(description.get("website", "")),
                     location=str(description.get("location", "")),
@@ -178,12 +213,15 @@ def import_archive_data(
         tweet_id = str(tweet.get("id", ""))
         if not tweet_id:
             continue
+        if owner_account_id is None:
+            continue
         display_text_range = tweet.get("display_text_range")
         existing = session.get(Tweet, tweet_id)
         if existing is None:
             session.add(
                 Tweet(
                     tweet_id=tweet_id,
+                    account_id=owner_account_id,
                     tweet_id_str=str(tweet.get("id_str", "")) or None,
                     tweet_kind="tweet",
                     created_at=str(tweet.get("created_at", "")),
@@ -235,6 +273,7 @@ def import_archive_data(
             )
             counts["tweet"] += 1
         else:
+            existing.account_id = owner_account_id
             existing.tweet_id_str = str(tweet.get("id_str", "")) or None
             existing.tweet_kind = "tweet"
             existing.created_at = str(tweet.get("created_at", ""))
@@ -496,12 +535,15 @@ def import_archive_data(
         tweet_id = str(tweet.get("id", ""))
         if not tweet_id:
             continue
+        if owner_account_id is None:
+            continue
         display_text_range = tweet.get("display_text_range")
         existing = session.get(Tweet, tweet_id)
         if existing is None:
             session.add(
                 Tweet(
                     tweet_id=tweet_id,
+                    account_id=owner_account_id,
                     tweet_id_str=str(tweet.get("id_str", "")) or None,
                     tweet_kind="community",
                     created_at=str(tweet.get("created_at", "")),
@@ -556,6 +598,7 @@ def import_archive_data(
             )
             counts["community_tweet"] += 1
         else:
+            existing.account_id = owner_account_id
             existing.tweet_id_str = str(tweet.get("id_str", "")) or None
             existing.tweet_kind = "community"
             existing.created_at = str(tweet.get("created_at", ""))
@@ -715,11 +758,14 @@ def import_archive_data(
         note_id = str(note.get("noteTweetId", ""))
         if not note_id:
             continue
+        if owner_account_id is None:
+            continue
         existing = session.get(NoteTweet, note_id)
         if existing is None:
             session.add(
                 NoteTweet(
                     note_tweet_id=note_id,
+                    account_id=owner_account_id,
                     created_at=str(note.get("createdAt", "")),
                     updated_at=str(note.get("updatedAt", "")),
                     lifecycle=note.get("lifecycle") or {},
@@ -728,6 +774,7 @@ def import_archive_data(
             )
             counts["note_tweet"] += 1
         else:
+            existing.account_id = owner_account_id
             existing.created_at = str(note.get("createdAt", ""))
             existing.updated_at = str(note.get("updatedAt", ""))
             existing.lifecycle = note.get("lifecycle") or {}
@@ -741,12 +788,20 @@ def import_archive_data(
         tweet_id = str(like.get("tweetId", ""))
         if not tweet_id:
             continue
+        if owner_account_id is None:
+            continue
         existing = session.exec(
-            select(Like).where(Like.tweet_id == tweet_id).limit(1)
+            select(Like)
+            .where(
+                Like.account_id == owner_account_id,
+                Like.tweet_id == tweet_id,
+            )
+            .limit(1)
         ).first()
         if existing is None:
             session.add(
                 Like(
+                    account_id=owner_account_id,
                     tweet_id=tweet_id,
                     full_text=like.get("fullText"),
                     expanded_url=like.get("expandedUrl"),
@@ -754,6 +809,7 @@ def import_archive_data(
             )
             counts["like"] += 1
         else:
+            existing.account_id = owner_account_id
             existing.full_text = like.get("fullText")
             existing.expanded_url = like.get("expandedUrl")
         like_counter += 1
@@ -762,34 +818,62 @@ def import_archive_data(
     follower_counter = 0
     for item in data.get("follower") or []:
         follower = item.get("follower") or {}
-        account_id = str(follower.get("accountId", ""))
-        if not account_id:
+        follower_account_id = str(follower.get("accountId", ""))
+        if not follower_account_id:
+            continue
+        if owner_account_id is None:
             continue
         user_link = str(follower.get("userLink", ""))
-        if not _exists(
-            session,
-            Follower,
-            [Follower.account_id == account_id, Follower.user_link == user_link],
-        ):
-            session.add(Follower(account_id=account_id, user_link=user_link))
+        existing = session.exec(
+            select(Follower)
+            .where(
+                Follower.account_id == owner_account_id,
+                Follower.follower_account_id == follower_account_id,
+            )
+            .limit(1)
+        ).first()
+        if existing is None:
+            session.add(
+                Follower(
+                    account_id=owner_account_id,
+                    follower_account_id=follower_account_id,
+                    user_link=user_link,
+                )
+            )
             counts["follower"] += 1
+        else:
+            existing.user_link = user_link
         follower_counter += 1
         commit_if_needed(follower_counter)
 
     following_counter = 0
     for item in data.get("following") or []:
         following = item.get("following") or {}
-        account_id = str(following.get("accountId", ""))
-        if not account_id:
+        followed_account_id = str(following.get("accountId", ""))
+        if not followed_account_id:
+            continue
+        if owner_account_id is None:
             continue
         user_link = str(following.get("userLink", ""))
-        if not _exists(
-            session,
-            Following,
-            [Following.account_id == account_id, Following.user_link == user_link],
-        ):
-            session.add(Following(account_id=account_id, user_link=user_link))
+        existing = session.exec(
+            select(Following)
+            .where(
+                Following.account_id == owner_account_id,
+                Following.followed_account_id == followed_account_id,
+            )
+            .limit(1)
+        ).first()
+        if existing is None:
+            session.add(
+                Following(
+                    account_id=owner_account_id,
+                    followed_account_id=followed_account_id,
+                    user_link=user_link,
+                )
+            )
             counts["following"] += 1
+        else:
+            existing.user_link = user_link
         following_counter += 1
         commit_if_needed(following_counter)
 
