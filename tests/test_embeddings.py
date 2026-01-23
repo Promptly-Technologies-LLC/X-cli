@@ -17,6 +17,10 @@ class TestEmbeddings(unittest.TestCase):
     def test_embedding_config_requires_api_key(self) -> None:
         with (
             mock.patch("birdapp.storage.embeddings.os.getenv", return_value=None),
+            mock.patch(
+                "birdapp.storage.embeddings.get_embedding_credential",
+                return_value=None,
+            ),
             mock.patch("birdapp.storage.embeddings.get_credential", return_value=None),
         ):
             with self.assertRaises(RuntimeError):
