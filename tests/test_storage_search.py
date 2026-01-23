@@ -61,6 +61,28 @@ def _make_archive(owner_id: str, username: str, tweets: list[dict[str, str]]) ->
 
 
 class TestStorageSearch(unittest.TestCase):
+    def test_search_returns_empty_for_blank_query(self) -> None:
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(
+                _make_archive(
+                    "42",
+                    "alice",
+                    [
+                        {
+                            "id": "111",
+                            "full_text": "hello world",
+                            "created_at": "2023-05-01T00:00:00.000Z",
+                        }
+                    ],
+                ),
+                session,
+            )
+
+            self.assertEqual(search_tweets(session, query=""), [])
+            self.assertEqual(search_tweets(session, query="   "), [])
+
     def test_search_returns_matches_by_keyword(self) -> None:
         engine = get_engine("sqlite:///:memory:")
         init_db(engine)
@@ -151,3 +173,77 @@ class TestStorageSearch(unittest.TestCase):
             )
 
         self.assertEqual(results, [])
+
+    def test_search_returns_empty_for_unknown_author(self) -> None:
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(
+                _make_archive(
+                    "42",
+                    "alice",
+                    [
+                        {
+                            "id": "111",
+                            "full_text": "hello world",
+                            "created_at": "2023-05-01T00:00:00.000Z",
+                        }
+                    ],
+                ),
+                session,
+            )
+
+            results = search_tweets(session, query="hello", author="@doesnotexist")
+
+        self.assertEqual(results, [])
+
+    def test_search_supports_quoted_phrase_queries(self) -> None:
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(
+                _make_archive(
+                    "42",
+                    "alice",
+                    [
+                        {
+                            "id": "111",
+                            "full_text": "machine learning is fun",
+                            "created_at": "2023-05-01T00:00:00.000Z",
+                        },
+                        {
+                            "id": "222",
+                            "full_text": "machine deep learning is different",
+                            "created_at": "2023-05-02T00:00:00.000Z",
+                        },
+                    ],
+                ),
+                session,
+            )
+
+            results = search_tweets(session, query='"machine learning"')
+
+        self.assertEqual([result.tweet_id for result in results], ["111"])
+
+    def test_search_matches_tokens_across_punctuation_in_text(self) -> None:
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(
+                _make_archive(
+                    "42",
+                    "alice",
+                    [
+                        {
+                            "id": "111",
+                            "full_text": "Hello, world!",
+                            "created_at": "2023-05-01T00:00:00.000Z",
+                        }
+                    ],
+                ),
+                session,
+            )
+
+            results = search_tweets(session, query="world")
+
+        self.assertEqual([result.tweet_id for result in results], ["111"])
