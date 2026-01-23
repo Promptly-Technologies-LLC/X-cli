@@ -2,6 +2,7 @@ import unittest
 from typing import Any, cast
 from copy import deepcopy
 
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 from birdapp.storage.db import get_engine, init_db
@@ -548,3 +549,267 @@ class TestArchiveImporter(unittest.TestCase):
             self.assertEqual(len(upload_options), 2)
             self.assertEqual(upload_options[0].account_id, "42")
             self.assertEqual(upload_options[1].account_id, "99")
+
+    def test_import_archive_data_rejects_cross_owner_tweet_id_collision(self) -> None:
+        def make_archive(owner_id: str, username: str, tweet_id: str) -> dict[str, Any]:
+            return {
+                "upload-options": {
+                    "keepPrivate": False,
+                    "uploadLikes": True,
+                    "startDate": "2023-01-01T00:00:00.000Z",
+                    "endDate": "2024-01-01T00:00:00.000Z",
+                },
+                "account": [
+                    {
+                        "account": {
+                            "createdVia": "oauth:123",
+                            "username": username,
+                            "accountId": owner_id,
+                            "createdAt": "2023-01-01T00:00:00.000Z",
+                            "accountDisplayName": username.title(),
+                        }
+                    }
+                ],
+                "profile": [],
+                "tweets": [
+                    {
+                        "tweet": {
+                            "created_at": "2023-05-01T00:00:00.000Z",
+                            "display_text_range": ["0", "5"],
+                            "entities": {
+                                "hashtags": [],
+                                "symbols": [],
+                                "user_mentions": [],
+                                "urls": [],
+                            },
+                            "favorite_count": "0",
+                            "id_str": tweet_id,
+                            "truncated": False,
+                            "retweet_count": "0",
+                            "id": tweet_id,
+                            "favorited": False,
+                            "full_text": f"tweet-{owner_id}",
+                            "lang": "en",
+                            "source": "web",
+                            "retweeted": False,
+                        }
+                    }
+                ],
+                "community-tweet": [],
+                "note-tweet": [],
+                "like": [],
+                "follower": [],
+                "following": [],
+            }
+
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(make_archive("42", "alice", "111"), session)
+
+            # Sanity-check FTS row is present for the imported tweet.
+            row = session.exec(
+                text(
+                    "SELECT account_id, full_text FROM tweet_fts WHERE tweet_id = :tweet_id"
+                ).bindparams(tweet_id="111")
+            ).one()
+            self.assertEqual(row[0], "42")
+            self.assertEqual(row[1], "tweet-42")
+
+            with self.assertRaises(ValueError):
+                import_archive_data(make_archive("99", "bob", "111"), session)
+
+            tweet = session.get(Tweet, "111")
+            self.assertIsNotNone(tweet)
+            tweet = cast(Tweet, tweet)
+            self.assertEqual(tweet.account_id, "42")
+
+            # Ensure we didn't clobber the FTS row during the rejected import.
+            row_after = session.exec(
+                text(
+                    "SELECT account_id, full_text FROM tweet_fts WHERE tweet_id = :tweet_id"
+                ).bindparams(tweet_id="111")
+            ).one()
+            self.assertEqual(row_after[0], "42")
+            self.assertEqual(row_after[1], "tweet-42")
+
+    def test_import_archive_data_creates_one_fts_row_per_tweet(self) -> None:
+        data = {
+            "upload-options": {
+                "keepPrivate": False,
+                "uploadLikes": True,
+                "startDate": "2023-01-01T00:00:00.000Z",
+                "endDate": "2024-01-01T00:00:00.000Z",
+            },
+            "account": [
+                {
+                    "account": {
+                        "createdVia": "oauth:123",
+                        "username": "example",
+                        "accountId": "42",
+                        "createdAt": "2023-01-01T00:00:00.000Z",
+                        "accountDisplayName": "Example",
+                    }
+                }
+            ],
+            "profile": [],
+            "tweets": [
+                {
+                    "tweet": {
+                        "created_at": "2023-05-01T00:00:00.000Z",
+                        "display_text_range": ["0", "5"],
+                        "entities": {
+                            "hashtags": [],
+                            "symbols": [],
+                            "user_mentions": [],
+                            "urls": [],
+                        },
+                        "favorite_count": "0",
+                        "id_str": "111",
+                        "truncated": False,
+                        "retweet_count": "0",
+                        "id": "111",
+                        "favorited": False,
+                        "full_text": "hello",
+                        "lang": "en",
+                        "source": "web",
+                        "retweeted": False,
+                    }
+                },
+                {
+                    "tweet": {
+                        "created_at": "2023-05-02T00:00:00.000Z",
+                        "display_text_range": ["0", "5"],
+                        "entities": {
+                            "hashtags": [],
+                            "symbols": [],
+                            "user_mentions": [],
+                            "urls": [],
+                        },
+                        "favorite_count": "0",
+                        "id_str": "112",
+                        "truncated": False,
+                        "retweet_count": "0",
+                        "id": "112",
+                        "favorited": False,
+                        "full_text": "world",
+                        "lang": "en",
+                        "source": "web",
+                        "retweeted": False,
+                    }
+                },
+            ],
+            "community-tweet": [
+                {
+                    "tweet": {
+                        "created_at": "2023-06-01T00:00:00.000Z",
+                        "display_text_range": ["0", "9"],
+                        "entities": {"hashtags": [], "symbols": [], "user_mentions": [], "urls": []},
+                        "favorite_count": "0",
+                        "id_str": "221",
+                        "truncated": False,
+                        "retweet_count": "0",
+                        "id": "221",
+                        "favorited": False,
+                        "full_text": "community",
+                        "lang": "en",
+                        "source": "web",
+                        "retweeted": False,
+                        "community_id": "99",
+                        "community_id_str": "99",
+                        "scopes": {"followers": True},
+                    }
+                }
+            ],
+            "note-tweet": [],
+            "like": [],
+            "follower": [],
+            "following": [],
+        }
+
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(data, session)
+
+            rows = session.exec(
+                text("SELECT tweet_id, account_id, full_text FROM tweet_fts ORDER BY tweet_id")
+            ).all()
+
+        self.assertEqual(len(rows), 3)
+        self.assertEqual([row[0] for row in rows], ["111", "112", "221"])
+        self.assertEqual([row[1] for row in rows], ["42", "42", "42"])
+        self.assertEqual([row[2] for row in rows], ["hello", "world", "community"])
+
+    def test_import_archive_data_reimport_updates_fts_without_duplicates(self) -> None:
+        def make_archive(full_text: str) -> dict[str, Any]:
+            return {
+                "upload-options": {
+                    "keepPrivate": False,
+                    "uploadLikes": True,
+                    "startDate": "2023-01-01T00:00:00.000Z",
+                    "endDate": "2024-01-01T00:00:00.000Z",
+                },
+                "account": [
+                    {
+                        "account": {
+                            "createdVia": "oauth:123",
+                            "username": "example",
+                            "accountId": "42",
+                            "createdAt": "2023-01-01T00:00:00.000Z",
+                            "accountDisplayName": "Example",
+                        }
+                    }
+                ],
+                "profile": [],
+                "tweets": [
+                    {
+                        "tweet": {
+                            "created_at": "2023-05-01T00:00:00.000Z",
+                            "display_text_range": ["0", str(len(full_text))],
+                            "entities": {
+                                "hashtags": [],
+                                "symbols": [],
+                                "user_mentions": [],
+                                "urls": [],
+                            },
+                            "favorite_count": "0",
+                            "id_str": "111",
+                            "truncated": False,
+                            "retweet_count": "0",
+                            "id": "111",
+                            "favorited": False,
+                            "full_text": full_text,
+                            "lang": "en",
+                            "source": "web",
+                            "retweeted": False,
+                        }
+                    }
+                ],
+                "community-tweet": [],
+                "note-tweet": [],
+                "like": [],
+                "follower": [],
+                "following": [],
+            }
+
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(make_archive("hello"), session)
+            import_archive_data(make_archive("hello updated"), session)
+
+            rows = session.exec(
+                text(
+                    "SELECT account_id, full_text FROM tweet_fts WHERE tweet_id = :tweet_id"
+                ).bindparams(tweet_id="111")
+            ).all()
+
+            tweet = session.get(Tweet, "111")
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], "42")
+        self.assertEqual(rows[0][1], "hello updated")
+        self.assertIsNotNone(tweet)
+        tweet = cast(Tweet, tweet)
+        self.assertEqual(tweet.full_text, "hello updated")

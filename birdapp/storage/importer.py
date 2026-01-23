@@ -243,6 +243,13 @@ def import_archive_data(
             continue
         display_text_range = tweet.get("display_text_range")
         existing = session.get(Tweet, tweet_id)
+        if existing is not None and existing.account_id != owner_account_id:
+            raise ValueError(
+                "Tweet id collision across owners. "
+                f"tweet_id={tweet_id!r}, "
+                f"existing_owner_account_id={existing.account_id!r}, "
+                f"new_owner_account_id={owner_account_id!r}."
+            )
         if existing is None:
             session.add(
                 Tweet(
@@ -572,6 +579,13 @@ def import_archive_data(
             continue
         display_text_range = tweet.get("display_text_range")
         existing = session.get(Tweet, tweet_id)
+        if existing is not None and existing.account_id != owner_account_id:
+            raise ValueError(
+                "Tweet id collision across owners. "
+                f"tweet_id={tweet_id!r}, "
+                f"existing_owner_account_id={existing.account_id!r}, "
+                f"new_owner_account_id={owner_account_id!r}."
+            )
         if existing is None:
             session.add(
                 Tweet(
