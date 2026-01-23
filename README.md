@@ -176,6 +176,15 @@ birdapp search "distributed systems" --json
 
 Semantic search is opt-in and uses embeddings. It requires `OPENAI_API_KEY` and the `sqlite-vec` extension. You can optionally override the model with `BIRDAPP_EMBEDDING_MODEL`.
 
+To configure these durably:
+
+```bash
+birdapp embed config --api-key sk-... --model text-embedding-3-small
+birdapp embed config --show
+```
+
+Environment variables still take precedence if set.
+
 Generate embeddings for stored tweets:
 
 ```bash
