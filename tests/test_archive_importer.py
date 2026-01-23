@@ -7,11 +7,14 @@ from sqlmodel import Session, select
 from birdapp.storage.db import get_engine, init_db
 from birdapp.storage.importer import build_archive_url, import_archive_data
 from birdapp.storage.models import (
+    Follower,
+    Following,
     Like,
     NoteTweet,
     Tweet,
     TweetHashtag,
     TweetMedia,
+    UploadOptions,
 )
 
 
@@ -203,6 +206,7 @@ class TestArchiveImporter(unittest.TestCase):
             self.assertEqual(tweet.favorite_count, 5)
             self.assertEqual(tweet.retweet_count, 2)
             self.assertEqual(tweet.display_text_range, [0, 10])
+            self.assertEqual(tweet.account_id, "42")
 
             hashtags = session.exec(select(TweetHashtag)).all()
             self.assertEqual(len(hashtags), 1)
@@ -217,6 +221,21 @@ class TestArchiveImporter(unittest.TestCase):
 
             likes = session.exec(select(Like)).all()
             self.assertEqual(len(likes), 1)
+            self.assertEqual(likes[0].account_id, "42")
+
+            upload_options = session.exec(select(UploadOptions)).all()
+            self.assertEqual(len(upload_options), 1)
+            self.assertEqual(upload_options[0].account_id, "42")
+
+            followers = session.exec(select(Follower)).all()
+            self.assertEqual(len(followers), 1)
+            self.assertEqual(followers[0].account_id, "42")
+            self.assertEqual(followers[0].follower_account_id, "11")
+
+            followings = session.exec(select(Following)).all()
+            self.assertEqual(len(followings), 1)
+            self.assertEqual(followings[0].account_id, "42")
+            self.assertEqual(followings[0].followed_account_id, "12")
 
     def test_import_archive_data_incremental_update(self) -> None:
         base_data = {
@@ -456,3 +475,76 @@ class TestArchiveImporter(unittest.TestCase):
             self.assertEqual(len(session.exec(select(TweetMedia)).all()), 1)
             self.assertEqual(len(session.exec(select(NoteTweet)).all()), 2)
             self.assertEqual(len(session.exec(select(Like)).all()), 2)
+
+    def test_import_archive_data_multi_user_like_dedupe(self) -> None:
+        def make_archive(owner_id: str, username: str, tweet_id: str) -> dict[str, Any]:
+            return {
+                "upload-options": {
+                    "keepPrivate": False,
+                    "uploadLikes": True,
+                    "startDate": "2023-01-01T00:00:00.000Z",
+                    "endDate": "2024-01-01T00:00:00.000Z",
+                },
+                "account": [
+                    {
+                        "account": {
+                            "createdVia": "oauth:123",
+                            "username": username,
+                            "accountId": owner_id,
+                            "createdAt": "2023-01-01T00:00:00.000Z",
+                            "accountDisplayName": username.title(),
+                        }
+                    }
+                ],
+                "profile": [],
+                "tweets": [
+                    {
+                        "tweet": {
+                            "created_at": "2023-05-01T00:00:00.000Z",
+                            "display_text_range": ["0", "5"],
+                            "entities": {"hashtags": [], "symbols": [], "user_mentions": [], "urls": []},
+                            "favorite_count": "0",
+                            "id_str": tweet_id,
+                            "truncated": False,
+                            "retweet_count": "0",
+                            "id": tweet_id,
+                            "favorited": False,
+                            "full_text": f"tweet-{owner_id}",
+                            "lang": "en",
+                            "source": "web",
+                            "retweeted": False,
+                        }
+                    }
+                ],
+                "community-tweet": [],
+                "note-tweet": [],
+                "like": [
+                    {
+                        "like": {
+                            "tweetId": "333",
+                            "fullText": "liked",
+                            "expandedUrl": "https://x.com",
+                        }
+                    }
+                ],
+                "follower": [],
+                "following": [],
+            }
+
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(make_archive("42", "alpha", "111"), session)
+            import_archive_data(make_archive("99", "beta", "222"), session)
+
+            likes = session.exec(select(Like).order_by(Like.account_id)).all()
+            self.assertEqual(len(likes), 2)
+            self.assertEqual(likes[0].account_id, "42")
+            self.assertEqual(likes[0].tweet_id, "333")
+            self.assertEqual(likes[1].account_id, "99")
+            self.assertEqual(likes[1].tweet_id, "333")
+
+            upload_options = session.exec(select(UploadOptions).order_by(UploadOptions.account_id)).all()
+            self.assertEqual(len(upload_options), 2)
+            self.assertEqual(upload_options[0].account_id, "42")
+            self.assertEqual(upload_options[1].account_id, "99")

@@ -1,13 +1,15 @@
 from typing import Any, Optional
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, Index, JSON, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 
 class UploadOptions(SQLModel, table=True):
     __tablename__ = "upload_options"
+    __table_args__ = (UniqueConstraint("account_id", name="uq_upload_options_account_id"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    account_id: str = Field(foreign_key="account.account_id", index=True)
     keep_private: bool
     upload_likes: bool
     start_date: str
@@ -41,8 +43,12 @@ class Profile(SQLModel, table=True):
 
 class Tweet(SQLModel, table=True):
     __tablename__ = "tweet"
+    __table_args__ = (
+        Index("ix_tweet_account_id_created_at", "account_id", "created_at"),
+    )
 
     tweet_id: str = Field(primary_key=True, index=True)
+    account_id: str = Field(foreign_key="account.account_id", index=True)
     tweet_id_str: Optional[str] = Field(default=None, index=True)
     tweet_kind: str = Field(default="tweet", index=True)
     created_at: str
@@ -161,6 +167,7 @@ class NoteTweet(SQLModel, table=True):
     __tablename__ = "note_tweet"
 
     note_tweet_id: str = Field(primary_key=True, index=True)
+    account_id: str = Field(foreign_key="account.account_id", index=True)
     created_at: str
     updated_at: str
     lifecycle: dict[str, Any] = Field(sa_column=Column(JSON))
@@ -169,8 +176,13 @@ class NoteTweet(SQLModel, table=True):
 
 class Like(SQLModel, table=True):
     __tablename__ = "like"
+    __table_args__ = (
+        UniqueConstraint("account_id", "tweet_id", name="uq_like_account_id_tweet_id"),
+        Index("ix_like_account_id_tweet_id", "account_id", "tweet_id"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    account_id: str = Field(foreign_key="account.account_id", index=True)
     tweet_id: str = Field(index=True)
     full_text: Optional[str] = None
     expanded_url: Optional[str] = None
@@ -178,15 +190,41 @@ class Like(SQLModel, table=True):
 
 class Follower(SQLModel, table=True):
     __tablename__ = "follower"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id",
+            "follower_account_id",
+            name="uq_follower_account_id_follower_account_id",
+        ),
+        Index(
+            "ix_follower_account_id_follower_account_id",
+            "account_id",
+            "follower_account_id",
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    account_id: str = Field(index=True)
+    account_id: str = Field(foreign_key="account.account_id", index=True)
+    follower_account_id: str = Field(index=True)
     user_link: str
 
 
 class Following(SQLModel, table=True):
     __tablename__ = "following"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id",
+            "followed_account_id",
+            name="uq_following_account_id_followed_account_id",
+        ),
+        Index(
+            "ix_following_account_id_followed_account_id",
+            "account_id",
+            "followed_account_id",
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    account_id: str = Field(index=True)
+    account_id: str = Field(foreign_key="account.account_id", index=True)
+    followed_account_id: str = Field(index=True)
     user_link: str
