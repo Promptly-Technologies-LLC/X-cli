@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence, TypeVar
 
@@ -23,6 +24,7 @@ from .models import (
     TweetUserMention,
     UploadOptions,
 )
+from .search import ensure_tweet_fts, sync_tweet_fts
 
 ModelType = TypeVar("ModelType")
 
@@ -70,6 +72,29 @@ def _indices_to_bounds(indices: Iterable[Any]) -> tuple[Optional[int], Optional[
 def _exists(session: Session, model: type[ModelType], filters: Sequence[Any]) -> bool:
     statement = select(model).where(*filters).limit(1)
     return session.exec(statement).first() is not None
+
+
+def _parse_archive_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return None
+        if candidate.endswith("Z"):
+            candidate = candidate[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    return None
 
 
 def _get_owner_account_id(data: dict[str, Any]) -> Optional[str]:
@@ -128,6 +153,7 @@ def import_archive_data(
         raise ValueError(
             "Archive owner account id is required to import owner-scoped data."
         )
+    ensure_tweet_fts(session)
 
     def commit_if_needed(counter: int) -> None:
         if counter % batch_size == 0:
@@ -224,7 +250,7 @@ def import_archive_data(
                     account_id=owner_account_id,
                     tweet_id_str=str(tweet.get("id_str", "")) or None,
                     tweet_kind="tweet",
-                    created_at=str(tweet.get("created_at", "")),
+                    created_at=_parse_archive_datetime(tweet.get("created_at")),
                     full_text=str(tweet.get("full_text", "")),
                     lang=str(tweet.get("lang", "")),
                     source=str(tweet.get("source", "")),
@@ -276,7 +302,7 @@ def import_archive_data(
             existing.account_id = owner_account_id
             existing.tweet_id_str = str(tweet.get("id_str", "")) or None
             existing.tweet_kind = "tweet"
-            existing.created_at = str(tweet.get("created_at", ""))
+            existing.created_at = _parse_archive_datetime(tweet.get("created_at"))
             existing.full_text = str(tweet.get("full_text", ""))
             existing.lang = str(tweet.get("lang", ""))
             existing.source = str(tweet.get("source", ""))
@@ -321,6 +347,13 @@ def import_archive_data(
                 else None
             )
             existing.edit_info = tweet.get("edit_info")
+
+        sync_tweet_fts(
+            session,
+            tweet_id=tweet_id,
+            account_id=owner_account_id,
+            full_text=str(tweet.get("full_text", "")),
+        )
 
         entities = tweet.get("entities") or {}
         for hashtag in entities.get("hashtags") or []:
@@ -546,7 +579,7 @@ def import_archive_data(
                     account_id=owner_account_id,
                     tweet_id_str=str(tweet.get("id_str", "")) or None,
                     tweet_kind="community",
-                    created_at=str(tweet.get("created_at", "")),
+                    created_at=_parse_archive_datetime(tweet.get("created_at")),
                     full_text=str(tweet.get("full_text", "")),
                     lang=str(tweet.get("lang", "")),
                     source=str(tweet.get("source", "")),
@@ -601,7 +634,7 @@ def import_archive_data(
             existing.account_id = owner_account_id
             existing.tweet_id_str = str(tweet.get("id_str", "")) or None
             existing.tweet_kind = "community"
-            existing.created_at = str(tweet.get("created_at", ""))
+            existing.created_at = _parse_archive_datetime(tweet.get("created_at"))
             existing.full_text = str(tweet.get("full_text", ""))
             existing.lang = str(tweet.get("lang", ""))
             existing.source = str(tweet.get("source", ""))
@@ -649,6 +682,13 @@ def import_archive_data(
             existing.community_id = str(tweet.get("community_id", "")) or None
             existing.community_id_str = str(tweet.get("community_id_str", "")) or None
             existing.scopes = tweet.get("scopes")
+
+        sync_tweet_fts(
+            session,
+            tweet_id=tweet_id,
+            account_id=owner_account_id,
+            full_text=str(tweet.get("full_text", "")),
+        )
 
         entities = tweet.get("entities") or {}
         for hashtag in entities.get("hashtags") or []:

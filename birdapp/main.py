@@ -1,6 +1,8 @@
 import argparse
 import json
 import os
+from datetime import date, datetime, timezone
+
 from .tweet import post_tweet, get_tweets_by_ids
 from .config import (
     clear_profile_override,
@@ -16,6 +18,7 @@ from .config import (
 )
 from .oauth2 import oauth2_login_flow, oauth2_whoami
 from .storage.importer import import_archive
+from .storage.search import search_results_payload, search_tweets_in_db
 from .user import (
     get_user_by_id, get_users_by_ids,
     get_user_by_username, get_users_by_usernames,
@@ -56,6 +59,25 @@ def _prompt_for_auth_flow() -> str:
         if choice in {"2", "oauth2", "oauth 2"}:
             return "oauth2"
         print("Please enter 1 or 2.")
+
+
+def _parse_date(value: str | None, *, flag: str) -> date | None:
+    if value is None:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError(f"Invalid date for {flag}. Use YYYY-MM-DD.") from exc
+
+
+def _format_search_timestamp(value: datetime | None) -> str:
+    if value is None:
+        return "unknown"
+    return (
+        value.astimezone(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def main() -> None:
@@ -145,6 +167,24 @@ def main() -> None:
         help='Batch size for inserts (default: 1000)',
     )
     import_parser.add_argument('--json', action='store_true', help='Output raw JSON result')
+
+    # Search stored tweets subcommand
+    search_parser = subparsers.add_parser(
+        "search",
+        help="Search stored tweets in the local SQLite database",
+    )
+    search_parser.add_argument("query", type=str, help="FTS query string")
+    search_parser.add_argument(
+        "--db",
+        type=str,
+        default=None,
+        help="Database URL (default: ~/.local/share/birdapp/birdapp.db)",
+    )
+    search_parser.add_argument("--author", type=str, help="Filter by owner username")
+    search_parser.add_argument("--since", type=str, help="Filter by date (YYYY-MM-DD)")
+    search_parser.add_argument("--until", type=str, help="Filter by date (YYYY-MM-DD)")
+    search_parser.add_argument("--limit", type=int, default=20, help="Max results")
+    search_parser.add_argument("--json", action="store_true", help="Output raw JSON result")
     
     # Parse arguments
     args = parser.parse_args()
@@ -347,6 +387,41 @@ def main() -> None:
                     print(f"{key}: {value}")
         except Exception as e:
             print(f"❌ Error importing archive: {str(e)}")
+        return
+
+    # Handle search command
+    if args.command == "search":
+        try:
+            since = _parse_date(args.since, flag="--since")
+            until = _parse_date(args.until, flag="--until")
+            results = search_tweets_in_db(
+                args.db,
+                query=args.query,
+                author=args.author,
+                since=since,
+                until=until,
+                limit=args.limit,
+            )
+            if args.json:
+                print(json.dumps(search_results_payload(results), indent=2))
+            else:
+                if not results:
+                    print("No results found.")
+                    return
+                for result in results:
+                    created_at = _format_search_timestamp(result.created_at)
+                    print(f"Tweet ID: {result.tweet_id}")
+                    print(
+                        "Owner: "
+                        f"@{result.owner.username} "
+                        f"({result.owner.account_display_name})"
+                    )
+                    print(f"Created: {created_at}")
+                    print(f"Text: {result.full_text}")
+                    print("-" * 50)
+        except Exception as e:
+            print(f"❌ Error searching tweets: {str(e)}")
+        return
 
 def format_tweets_output(data: dict, format_type: str):
     """Format and display tweet data"""

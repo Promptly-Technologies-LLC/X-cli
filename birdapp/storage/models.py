@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Optional
 
 from sqlalchemy import Column, Index, JSON, UniqueConstraint
@@ -51,7 +52,7 @@ class Tweet(SQLModel, table=True):
     account_id: str = Field(foreign_key="account.account_id", index=True)
     tweet_id_str: Optional[str] = Field(default=None, index=True)
     tweet_kind: str = Field(default="tweet", index=True)
-    created_at: str
+    created_at: Optional[datetime] = Field(default=None, nullable=True)
     full_text: str
     lang: str
     source: str
