@@ -9,6 +9,8 @@ dependencies = [
     "requests>=2.32.3",
     "platformdirs>=4.3.6",
     "sqlmodel>=0.0.31",
+    "openai>=1.0.0",
+    "sqlite-vec>=0.1.0",
 ]
 
 [project.scripts]

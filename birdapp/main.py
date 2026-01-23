@@ -17,6 +17,12 @@ from .config import (
     show_config,
 )
 from .oauth2 import oauth2_login_flow, oauth2_whoami
+from .storage.embeddings import (
+    EmbeddingsUnavailable,
+    embed_tweets_in_db,
+    semantic_results_payload,
+    semantic_search_tweets_in_db,
+)
 from .storage.importer import import_archive
 from .storage.search import search_results_payload, search_tweets_in_db
 from .user import (
@@ -167,6 +173,11 @@ def main() -> None:
         help='Batch size for inserts (default: 1000)',
     )
     import_parser.add_argument('--json', action='store_true', help='Output raw JSON result')
+    import_parser.add_argument(
+        "--embed",
+        action="store_true",
+        help="Generate embeddings after import",
+    )
 
     # Search stored tweets subcommand
     search_parser = subparsers.add_parser(
@@ -185,6 +196,35 @@ def main() -> None:
     search_parser.add_argument("--until", type=str, help="Filter by date (YYYY-MM-DD)")
     search_parser.add_argument("--limit", type=int, default=20, help="Max results")
     search_parser.add_argument("--json", action="store_true", help="Output raw JSON result")
+    search_parser.add_argument(
+        "--semantic",
+        action="store_true",
+        help="Use semantic search with embeddings",
+    )
+
+    # Embed stored tweets subcommand
+    embed_parser = subparsers.add_parser(
+        "embed",
+        help="Generate embeddings for stored tweets",
+    )
+    embed_parser.add_argument(
+        "--db",
+        type=str,
+        default=None,
+        help="Database URL (default: ~/.local/share/birdapp/birdapp.db)",
+    )
+    embed_parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Embedding model override",
+    )
+    embed_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=100,
+        help="Batch size for embedding requests (default: 100)",
+    )
     
     # Parse arguments
     args = parser.parse_args()
@@ -385,6 +425,13 @@ def main() -> None:
                 print(f"✅ Imported {total} rows")
                 for key, value in result.items():
                     print(f"{key}: {value}")
+            if args.embed:
+                embedded = embed_tweets_in_db(
+                    args.db,
+                    model_override=None,
+                    batch_size=args.batch_size,
+                )
+                print(f"✅ Embedded {embedded} tweets")
         except Exception as e:
             print(f"❌ Error importing archive: {str(e)}")
         return
@@ -394,33 +441,77 @@ def main() -> None:
         try:
             since = _parse_date(args.since, flag="--since")
             until = _parse_date(args.until, flag="--until")
-            results = search_tweets_in_db(
-                args.db,
-                query=args.query,
-                author=args.author,
-                since=since,
-                until=until,
-                limit=args.limit,
-            )
-            if args.json:
-                print(json.dumps(search_results_payload(results), indent=2))
+            if args.semantic:
+                results = semantic_search_tweets_in_db(
+                    args.db,
+                    query=args.query,
+                    author=args.author,
+                    since=since,
+                    until=until,
+                    limit=args.limit,
+                    model_override=None,
+                )
+                if args.json:
+                    print(json.dumps(semantic_results_payload(results), indent=2))
+                else:
+                    if not results:
+                        print("No results found.")
+                        return
+                    for result in results:
+                        created_at = _format_search_timestamp(result.created_at)
+                        print(f"Tweet ID: {result.tweet_id}")
+                        print(
+                            "Owner: "
+                            f"@{result.owner_username} "
+                            f"({result.owner_display_name})"
+                        )
+                        print(f"Created: {created_at}")
+                        print(f"Text: {result.full_text}")
+                        print("-" * 50)
             else:
-                if not results:
-                    print("No results found.")
-                    return
-                for result in results:
-                    created_at = _format_search_timestamp(result.created_at)
-                    print(f"Tweet ID: {result.tweet_id}")
-                    print(
-                        "Owner: "
-                        f"@{result.owner.username} "
-                        f"({result.owner.account_display_name})"
-                    )
-                    print(f"Created: {created_at}")
-                    print(f"Text: {result.full_text}")
-                    print("-" * 50)
+                results = search_tweets_in_db(
+                    args.db,
+                    query=args.query,
+                    author=args.author,
+                    since=since,
+                    until=until,
+                    limit=args.limit,
+                )
+                if args.json:
+                    print(json.dumps(search_results_payload(results), indent=2))
+                else:
+                    if not results:
+                        print("No results found.")
+                        return
+                    for result in results:
+                        created_at = _format_search_timestamp(result.created_at)
+                        print(f"Tweet ID: {result.tweet_id}")
+                        print(
+                            "Owner: "
+                            f"@{result.owner.username} "
+                            f"({result.owner.account_display_name})"
+                        )
+                        print(f"Created: {created_at}")
+                        print(f"Text: {result.full_text}")
+                        print("-" * 50)
         except Exception as e:
-            print(f"❌ Error searching tweets: {str(e)}")
+            if isinstance(e, EmbeddingsUnavailable):
+                print(str(e))
+            else:
+                print(f"❌ Error searching tweets: {str(e)}")
+        return
+
+    # Handle embed command
+    if args.command == "embed":
+        try:
+            embedded = embed_tweets_in_db(
+                args.db,
+                model_override=args.model,
+                batch_size=args.batch_size,
+            )
+            print(f"✅ Embedded {embedded} tweets")
+        except Exception as e:
+            print(f"❌ Error generating embeddings: {str(e)}")
         return
 
 def format_tweets_output(data: dict, format_type: str):
