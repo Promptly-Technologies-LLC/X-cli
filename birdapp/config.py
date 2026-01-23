@@ -58,6 +58,13 @@ def _get_oauth2_app_config(config: Dict[str, Any]) -> Dict[str, str]:
         return oauth2_app
     return {}
 
+
+def _get_embeddings_config(config: Dict[str, Any]) -> Dict[str, str]:
+    embeddings = config.get("embeddings")
+    if isinstance(embeddings, dict):
+        return embeddings
+    return {}
+
 def _get_active_profile(config: Dict[str, Any]) -> Optional[str]:
     active = config.get("active_profile")
     if isinstance(active, str) and active.strip():
@@ -147,6 +154,40 @@ def get_credential(key: str, profile: str | None = None) -> Optional[str]:
     if key in _OAUTH2_APP_KEYS:
         return oauth2_app.get(key) or config.get(key)
     return config.get(key)
+
+
+def get_embedding_credential(key: str) -> Optional[str]:
+    config = load_config()
+    embeddings = _get_embeddings_config(config)
+    if key in embeddings:
+        return embeddings.get(key)
+    return config.get(key)
+
+
+def set_embedding_credentials(api_key: str, model: Optional[str]) -> None:
+    config = load_config()
+    embeddings = _get_embeddings_config(config)
+    if not embeddings:
+        embeddings = {}
+    embeddings["OPENAI_API_KEY"] = api_key
+    if model:
+        embeddings["BIRDAPP_EMBEDDING_MODEL"] = model
+    config["embeddings"] = embeddings
+    save_config(config)
+
+
+def show_embedding_config() -> None:
+    config = load_config()
+    embeddings = _get_embeddings_config(config)
+    if not embeddings:
+        print("No embedding configuration found.")
+        return
+    api_key = embeddings.get("OPENAI_API_KEY", "")
+    redacted = "****" if api_key else "Not set"
+    model = embeddings.get("BIRDAPP_EMBEDDING_MODEL") or "Not set"
+    print("Embedding configuration:")
+    print(f"  OPENAI_API_KEY: {redacted}")
+    print(f"  BIRDAPP_EMBEDDING_MODEL: {model}")
 
 def _ensure_profiles_config(config: Dict[str, Any], profile: str) -> Dict[str, str]:
     profiles = config.get("profiles")

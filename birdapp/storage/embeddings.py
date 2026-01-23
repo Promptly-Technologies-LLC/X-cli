@@ -10,7 +10,7 @@ from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, select
 
-from birdapp.config import get_credential
+from birdapp.config import get_credential, get_embedding_credential
 from birdapp.storage.db import get_default_db_url, get_engine, get_session, init_db
 from birdapp.storage.models import Account, Tweet
 
@@ -52,12 +52,17 @@ class SemanticSearchResult:
 
 
 def resolve_embedding_config(model_override: Optional[str]) -> EmbeddingConfig:
-    api_key = os.getenv("OPENAI_API_KEY") or get_credential("OPENAI_API_KEY")
+    api_key = (
+        os.getenv("OPENAI_API_KEY")
+        or get_embedding_credential("OPENAI_API_KEY")
+        or get_credential("OPENAI_API_KEY")
+    )
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is required for embeddings.")
     model = (
         model_override
         or os.getenv("BIRDAPP_EMBEDDING_MODEL")
+        or get_embedding_credential("BIRDAPP_EMBEDDING_MODEL")
         or get_credential("BIRDAPP_EMBEDDING_MODEL")
         or _DEFAULT_EMBEDDING_MODEL
     )

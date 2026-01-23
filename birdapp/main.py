@@ -15,6 +15,8 @@ from .config import (
     set_active_profile,
     set_profile_override,
     show_config,
+    set_embedding_credentials,
+    show_embedding_config,
 )
 from .oauth2 import oauth2_login_flow, oauth2_whoami
 from .storage.embeddings import (
@@ -206,6 +208,27 @@ def main() -> None:
     embed_parser = subparsers.add_parser(
         "embed",
         help="Generate embeddings for stored tweets",
+    )
+    embed_subparsers = embed_parser.add_subparsers(dest="embed_command")
+    embed_subparsers.required = False
+    embed_config_parser = embed_subparsers.add_parser(
+        "config",
+        help="Configure embedding credentials",
+    )
+    embed_config_parser.add_argument(
+        "--api-key",
+        type=str,
+        help="OpenAI API key",
+    )
+    embed_config_parser.add_argument(
+        "--model",
+        type=str,
+        help="Embedding model",
+    )
+    embed_config_parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Show embedding configuration",
     )
     embed_parser.add_argument(
         "--db",
@@ -503,6 +526,16 @@ def main() -> None:
 
     # Handle embed command
     if args.command == "embed":
+        if args.embed_command == "config":
+            if args.show:
+                show_embedding_config()
+                return
+            if not args.api_key:
+                print("OPENAI_API_KEY is required.")
+                return
+            set_embedding_credentials(api_key=args.api_key, model=args.model)
+            print("✅ Embedding configuration saved.")
+            return
         try:
             embedded = embed_tweets_in_db(
                 args.db,
