@@ -154,6 +154,48 @@ If you've already downloaded your archive.json file, you can import it from a lo
 birdapp import-archive --path /path/to/archive.json
 ```
 
+You can import multiple archives into the same database. Use `--db` to point to a specific database file:
+
+```bash
+birdapp import-archive --username alice --db sqlite:////path/to/birdapp.db
+birdapp import-archive --username bob --db sqlite:////path/to/birdapp.db
+```
+
+### Searching stored tweets (keyword)
+
+Keyword search uses SQLite FTS5 for full-text search across imported tweets:
+
+```bash
+birdapp search "machine learning" --limit 20
+birdapp search "climate policy" --author @alice
+birdapp search "startup" --since 2024-01-01 --until 2024-06-30
+birdapp search "distributed systems" --json
+```
+
+### Semantic search (embeddings)
+
+Semantic search is opt-in and uses embeddings. It requires `OPENAI_API_KEY` and the `sqlite-vec` extension. You can optionally override the model with `BIRDAPP_EMBEDDING_MODEL`.
+
+Generate embeddings for stored tweets:
+
+```bash
+birdapp embed
+birdapp embed --db sqlite:////path/to/birdapp.db --model text-embedding-3-small
+```
+
+Then run semantic search:
+
+```bash
+birdapp search "productivity systems" --semantic --limit 10
+birdapp search "startup hiring" --semantic --author @alice
+```
+
+You can also embed immediately after import:
+
+```bash
+birdapp import-archive --username yourusername --embed
+```
+
 ### Help
 
 To see all available commands:
