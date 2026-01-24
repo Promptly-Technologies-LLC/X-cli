@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence, TypeVar
 
 import requests
+import zipfile
 from sqlmodel import Session, select
 
 from .db import get_default_db_url, get_engine, get_session, init_db
@@ -33,6 +34,8 @@ ARCHIVE_URL_TEMPLATE = (
     "archives/{username}/archive.json"
 )
 
+_TWITTER_ZIP_MANIFEST_PATH = "data/manifest.js"
+
 
 def build_archive_url(username: str) -> str:
     return ARCHIVE_URL_TEMPLATE.format(username=username)
@@ -48,6 +51,111 @@ def load_archive(path: str | Path) -> dict[str, Any]:
     path = Path(path)
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _parse_js_assigned_json_payload(contents: str) -> Any:
+    """
+    Parse Twitter ZIP `.js` files that wrap a JSON payload in a JavaScript assignment, e.g.
+    `window.YTD.tweets.part0 = [ ... ]`.
+    """
+    idx = contents.find("=")
+    if idx < 0:
+        raise ValueError("Expected a JavaScript assignment containing a JSON payload.")
+    payload = contents[idx + 1 :].strip()
+    if payload.endswith(";"):
+        payload = payload[:-1].strip()
+    return json.loads(payload)
+
+
+def _load_twitter_zip_manifest(archive: zipfile.ZipFile) -> dict[str, Any] | None:
+    try:
+        raw = archive.read(_TWITTER_ZIP_MANIFEST_PATH)
+    except KeyError:
+        return None
+    contents = raw.decode("utf-8")
+    parsed = _parse_js_assigned_json_payload(contents)
+    if not isinstance(parsed, dict):
+        raise ValueError("Twitter archive manifest did not parse to an object.")
+    return parsed
+
+
+def load_twitter_zip(path: str | Path) -> dict[str, Any]:
+    """
+    Load a Twitter 'Download your data' ZIP and normalize it into the same
+    dict[str, Any] shape expected by `import_archive_data(...)`.
+    """
+    path = Path(path)
+    if not zipfile.is_zipfile(path):
+        raise ValueError("Invalid Twitter archive ZIP: could not read ZIP file.")
+
+    # Twitter manifest keys (camelCase) -> our importer keys.
+    dataset_key_map: dict[str, str] = {
+        "account": "account",
+        "profile": "profile",
+        "tweets": "tweets",
+        "communityTweet": "community-tweet",
+        "noteTweet": "note-tweet",
+        "like": "like",
+        "follower": "follower",
+        "following": "following",
+    }
+
+    fallback_files: dict[str, str] = {
+        "account": "data/account.js",
+        "profile": "data/profile.js",
+        "tweets": "data/tweets.js",
+        "communityTweet": "data/community-tweet.js",
+        "noteTweet": "data/note-tweet.js",
+        "like": "data/like.js",
+        "follower": "data/follower.js",
+        "following": "data/following.js",
+    }
+
+    normalized: dict[str, Any] = {value: [] for value in dataset_key_map.values()}
+
+    with zipfile.ZipFile(path) as archive:
+        manifest = _load_twitter_zip_manifest(archive)
+        data_types = None
+        if manifest is not None:
+            data_types = manifest.get("dataTypes")
+            if data_types is not None and not isinstance(data_types, dict):
+                raise ValueError("Twitter archive manifest has invalid dataTypes.")
+
+        for manifest_key, output_key in dataset_key_map.items():
+            files: list[str] = []
+            if isinstance(data_types, dict) and manifest_key in data_types:
+                entry = data_types.get(manifest_key) or {}
+                if isinstance(entry, dict):
+                    file_entries = entry.get("files") or []
+                    if isinstance(file_entries, list):
+                        for file_entry in file_entries:
+                            if not isinstance(file_entry, dict):
+                                continue
+                            file_name = str(file_entry.get("fileName", "")).strip()
+                            if file_name:
+                                files.append(file_name)
+            if not files:
+                files = [fallback_files[manifest_key]]
+
+            for file_name in files:
+                try:
+                    raw = archive.read(file_name)
+                except KeyError:
+                    continue
+                contents = raw.decode("utf-8")
+                parsed = _parse_js_assigned_json_payload(contents)
+                if not isinstance(parsed, list):
+                    raise ValueError(
+                        f"Twitter archive file {file_name!r} did not parse to a list."
+                    )
+                cast_list: list[Any] = parsed
+                normalized[output_key].extend(cast_list)
+
+    # Owner attribution requires account info; treat missing/empty as fatal.
+    if not isinstance(normalized.get("account"), list) or not normalized["account"]:
+        raise ValueError("Twitter archive missing 'data/account.js'; cannot determine owner.")
+
+    return normalized
 
 
 def _safe_int(value: Any) -> Optional[int]:
@@ -90,7 +198,10 @@ def _parse_archive_datetime(value: Any) -> Optional[datetime]:
         try:
             parsed = datetime.fromisoformat(candidate)
         except ValueError:
-            return None
+            try:
+                parsed = datetime.strptime(candidate, "%a %b %d %H:%M:%S %z %Y")
+            except ValueError:
+                return None
         if parsed.tzinfo is None:
             return parsed.replace(tzinfo=timezone.utc)
         return parsed.astimezone(timezone.utc)
@@ -957,7 +1068,11 @@ def import_archive(
     else:
         if path is None:
             raise ValueError("Provide username, url, or path.")
-        data = load_archive(Path(path))
+        path_obj = Path(path)
+        if zipfile.is_zipfile(path_obj):
+            data = load_twitter_zip(path_obj)
+        else:
+            data = load_archive(path_obj)
 
     engine = get_engine(db_url)
     init_db(engine)

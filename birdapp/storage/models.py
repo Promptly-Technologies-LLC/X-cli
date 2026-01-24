@@ -1,8 +1,38 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import Column, Index, JSON, UniqueConstraint
+from sqlalchemy import Column, DateTime, Index, JSON, UniqueConstraint
+from sqlalchemy.types import TypeDecorator
 from sqlmodel import Field, Relationship, SQLModel
+
+
+class UTCDateTime(TypeDecorator[datetime]):
+    """
+    Store datetimes as UTC in SQLite and re-attach UTC tzinfo on reads.
+
+    SQLite does not preserve timezone information for DATETIME columns. This type
+    normalizes bound values to UTC and returns timezone-aware UTC datetimes.
+    """
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect: Any) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            # Treat naive values as UTC.
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+    def process_result_value(
+        self, value: datetime | None, dialect: Any
+    ) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is not None:
+            return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=timezone.utc)
 
 
 class UploadOptions(SQLModel, table=True):
@@ -52,7 +82,9 @@ class Tweet(SQLModel, table=True):
     account_id: str = Field(foreign_key="account.account_id", index=True)
     tweet_id_str: Optional[str] = Field(default=None, index=True)
     tweet_kind: str = Field(default="tweet", index=True)
-    created_at: Optional[datetime] = Field(default=None, nullable=True)
+    created_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(UTCDateTime(), nullable=True)
+    )
     full_text: str
     lang: str
     source: str
