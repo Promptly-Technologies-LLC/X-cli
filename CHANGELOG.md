@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-01-24)
+
+### Features
+
+- Allow tweeting with a positional text argument
+  ([`722870c`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/722870c8fd45f6935fc1b322262c89546f688ef2))
+
+
 ## v1.2.0 (2026-01-23)
 
 ### Bug Fixes
