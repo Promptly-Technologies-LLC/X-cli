@@ -140,25 +140,41 @@ birdapp user 44196397 --by-id
 birdapp user elonmusk --format detailed --fields public_metrics created_at
 ```
 
-### Importing your tweets from the Twitter Community Archive
+### Importing your tweets (recommended: Twitter data export ZIP)
 
-If you have shared your tweets with the public via the Twitter Community Archive, you can download them from the archive and import them into a SQLite database for local search and analysis:
+birdapp supports bulk import of your tweets from Twitter/X’s **“Download your data”** export ZIP:
+
+```bash
+birdapp import-archive --path /path/to/twitter-archive.zip
+```
+
+To get the ZIP from Twitter/X:
+
+- **Request the export**: go to **Settings** → **Your account** → **Download an archive of your data** (wording may vary) and request the archive.
+- **Wait for processing**: it can take ~24 hours.
+- **Download**: you’ll get an email with a download link once it’s ready.
+
+### Importing from the Twitter Community Archive (optional)
+
+If you have shared your tweets with the public via the Twitter Community Archive, you can download them from the archive and import them into a SQLite database:
 
 ```bash
 birdapp import-archive --username yourusername
 ```
 
-If you've already downloaded your archive.json file, you can import it from a local file:
+If you've already downloaded `archive.json`, you can import it from a local file. The importer auto-detects the file type and safely parses the JSON payloads:
 
 ```bash
 birdapp import-archive --path /path/to/archive.json
 ```
 
-You can import multiple archives into the same database. Use `--db` to point to a specific database file:
+### Multi-account support
+
+You can import multiple archives into the same database.
 
 ```bash
-birdapp import-archive --username alice --db sqlite:////path/to/birdapp.db
-birdapp import-archive --username bob --db sqlite:////path/to/birdapp.db
+birdapp import-archive --username alice
+birdapp import-archive --username bob
 ```
 
 ### Searching stored tweets (keyword)
