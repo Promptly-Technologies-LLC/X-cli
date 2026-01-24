@@ -124,7 +124,19 @@ def main() -> None:
 
     # Tweet subcommand
     tweet_parser = subparsers.add_parser('tweet', help='Post a tweet')
-    tweet_parser.add_argument('--text', type=str, help='Tweet text to post (optional if media provided)', default="")
+    tweet_parser.add_argument(
+        "text",
+        nargs="?",
+        default=None,
+        help="Tweet text to post (optional if media provided)",
+    )
+    tweet_parser.add_argument(
+        "--text",
+        dest="text_flag",
+        type=str,
+        default=None,
+        help="Tweet text to post (optional if media provided)",
+    )
     tweet_parser.add_argument('--media', type=str, help='Path to media file (optional)')
     tweet_parser.add_argument('--reply-to', dest='reply_to', type=str, help='Tweet ID or URL to reply to (optional)')
     
@@ -323,15 +335,21 @@ def main() -> None:
     
     # Handle tweet command
     if args.command == 'tweet':
+        if args.text_flag is not None and args.text is not None:
+            print("Error: Provide tweet text either positionally or with --text, not both")
+            raise SystemExit(1)
+
+        text = (args.text_flag or args.text or "").strip()
+
         # Validate arguments
-        if not args.text.strip() and not args.media:
+        if not text and not args.media:
             print("Error: Cannot post empty tweet without media")
             exit(1)
         
         # Post the tweet
         try:
             success, message = post_tweet(
-                text=args.text,
+                text=text,
                 media_path=args.media,
                 reply_to=args.reply_to
             )
