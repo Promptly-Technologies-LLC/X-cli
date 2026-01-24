@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-01-24)
+
+### Documentation
+
+- Document zip import
+  ([`2812861`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/28128619fc4d0628aca089fd4c0a56e74164e318))
+
+### Features
+
+- Support ingesting downloaded X archive zip
+  ([`c93e057`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/c93e05730310ce5c55be042dd98ba6263fc33e3b))
+
+
 ## v1.3.0 (2026-01-24)
 
 ### Features
