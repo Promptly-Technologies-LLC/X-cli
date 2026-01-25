@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.3 (2026-01-25)
+
+### Bug Fixes
+
+- Increase accuracy of 'auth config --show' output
+  ([`36ecffe`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/36ecffe212e9a1db9cb754e68b0d8cc2824c43bb))
+
+
 ## v1.4.2 (2026-01-25)
 
 ### Bug Fixes
