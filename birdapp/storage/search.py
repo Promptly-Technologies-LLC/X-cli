@@ -207,6 +207,19 @@ def _coerce_datetime(value: Any) -> Optional[datetime]:
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return None
+        # When selecting `t.created_at` via raw SQL against SQLite, the driver
+        # often returns a string like "2026-01-22 21:04:29.000000".
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
     return None
 
 
