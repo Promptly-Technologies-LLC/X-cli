@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.1 (2026-01-25)
+
+### Bug Fixes
+
+- Search returns valid dates
+  ([`43b78f2`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/43b78f2527fb8bd66c4fec0b0119f477cbd91e23))
+
+
 ## v1.4.0 (2026-01-24)
 
 ### Documentation
