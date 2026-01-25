@@ -85,3 +85,53 @@ def get_user_session(user_id: str, profile: str | None = None) -> tuple[Optional
         session = create_session_from_token(token)
         return session, token
     return None, None 
+
+
+def has_oauth2_token(profile: str | None = None) -> bool:
+    """
+    Return True if any OAuth2 token (with an access_token) exists for the given
+    profile (or the active profile when omitted).
+    """
+    sessions_dir = get_sessions_dir()
+    tokens_path = os.path.join(sessions_dir, "tokens.json")
+    tokens = _load_tokens(tokens_path)
+    profiles = tokens.get("profiles")
+    if not isinstance(profiles, dict):
+        return False
+
+    profile_name = _resolve_profile(profile, tokens)
+    if not profile_name:
+        return False
+
+    profile_tokens = profiles.get(profile_name)
+    if not isinstance(profile_tokens, dict):
+        return False
+
+    for token in profile_tokens.values():
+        if isinstance(token, dict) and isinstance(token.get("access_token"), str) and token["access_token"].strip():
+            return True
+    return False
+
+
+def load_any_oauth2_token(profile: str) -> tuple[str, Dict[str, Any]] | None:
+    """
+    Load any stored OAuth2 token for a specific profile.
+
+    Returns (user_id, token) when present, otherwise None.
+    """
+    sessions_dir = get_sessions_dir()
+    tokens_path = os.path.join(sessions_dir, "tokens.json")
+    tokens = _load_tokens(tokens_path)
+    profiles = tokens.get("profiles")
+    if not isinstance(profiles, dict):
+        return None
+
+    profile_tokens = profiles.get(profile)
+    if not isinstance(profile_tokens, dict) or not profile_tokens:
+        return None
+
+    user_id = next(iter(profile_tokens.keys()))
+    token = profile_tokens.get(user_id)
+    if not isinstance(user_id, str) or not isinstance(token, dict):
+        return None
+    return user_id, token

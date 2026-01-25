@@ -13,6 +13,9 @@ def _base64url_encode(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 class TestOAuth2(unittest.TestCase):
+    def test_default_oauth2_scopes_include_tweet_write(self) -> None:
+        self.assertIn("tweet.write", oauth2.DEFAULT_OAUTH2_SCOPES.split())
+
     def test_create_pkce_pair(self) -> None:
         code_verifier, code_challenge = oauth2.create_pkce_pair()
         self.assertGreaterEqual(len(code_verifier), 43)

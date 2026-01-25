@@ -26,3 +26,17 @@ class TestTweetCli(unittest.TestCase):
 
         post_tweet.assert_called_once_with(text="hello world", media_path=None, reply_to=None)
 
+    def test_tweet_cli_reminds_to_login_for_oauth2(self) -> None:
+        with (
+            mock.patch.object(sys, "argv", ["birdapp", "tweet", "hello world"]),
+            mock.patch("birdapp.main._has_oauth2_config", return_value=True),
+            mock.patch("birdapp.main._has_oauth1_credentials", return_value=False),
+            mock.patch("birdapp.main.has_oauth2_token", return_value=False),
+            mock.patch("birdapp.main.post_tweet", return_value=(True, "ok")),
+            mock.patch("builtins.print") as print_mock,
+        ):
+            main_module.main()
+
+        messages = [" ".join(map(str, call.args)) for call in print_mock.call_args_list]
+        self.assertTrue(any("auth login" in msg for msg in messages))
+
