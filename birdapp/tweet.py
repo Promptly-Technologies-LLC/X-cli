@@ -2,7 +2,7 @@ import logging
 import requests
 from .media import create_media_payload
 from .auth import create_oauth1_auth
-from .config import get_credential
+from . import config as config_module
 from .utils import extract_tweet_id
 
 logger = logging.getLogger(__name__)
@@ -33,10 +33,33 @@ def create_tweet_payload(text: str, media_path: str | None = None, reply_to: str
 
 def construct_tweet_link(tweet_id: str) -> str:
     """Construct the tweet link from the username and tweet ID."""
-    username = get_credential("X_USERNAME")
+    username = config_module.get_credential("X_USERNAME")
     if not username:
         return f"https://x.com/status/{tweet_id}"
     return f"https://x.com/{username}/status/{tweet_id}"
+
+def _load_oauth2_access_token() -> str | None:
+    """
+    Load an OAuth2 access token for the currently selected profile.
+
+    Profile selection respects `birdapp --profile ...` because `get_credential`
+    consults the profile override.
+    """
+    profile_override = getattr(config_module, "_PROFILE_OVERRIDE", None)
+    profile_name = profile_override or config_module.get_active_profile()
+    if not profile_name:
+        return None
+
+    from . import session as session_module
+
+    loaded = session_module.load_any_oauth2_token(profile_name)
+    if not loaded:
+        return None
+    _, token = loaded
+    access_token = token.get("access_token")
+    if not isinstance(access_token, str) or not access_token.strip():
+        return None
+    return access_token.strip()
 
 
 def handle_tweet_response(response: requests.Response) -> tuple[bool, str]:
@@ -66,6 +89,21 @@ def handle_tweet_response(response: requests.Response) -> tuple[bool, str]:
                 detail = error_details.get('detail') or error_details.get('title') or response.reason
                 error_msg = f"Error ({status_code}): {detail}"
                 logger.error("API error %d: %s", status_code, detail)
+
+        status_code = response.status_code
+        if status_code == 403:
+            detail_text = ""
+            if isinstance(error_details, dict):
+                detail_text = str(error_details.get("detail") or error_details.get("title") or "")
+            if "scope" in detail_text.lower() or "permission" in detail_text.lower():
+                from .oauth2 import DEFAULT_OAUTH2_SCOPES
+
+                error_msg = (
+                    f"{error_msg} "
+                    "Your OAuth2 token likely lacks `tweet.write`. "
+                    "Re-run `birdapp auth config --oauth2` (set `X_OAUTH2_SCOPES` to "
+                    f"`{DEFAULT_OAUTH2_SCOPES}`), then re-run `birdapp auth login`."
+                )
     except ValueError:
         error_msg = f"Error ({response.status_code}): {response.reason}"
         logger.error("Failed to parse error response: %s", response.text)
@@ -75,21 +113,70 @@ def handle_tweet_response(response: requests.Response) -> tuple[bool, str]:
 
 def submit_tweet(text: str, media_path: str | None = None, reply_to: str | None = None) -> requests.Response:
     """
-    Post a tweet with optional media and reply using OAuth1 authentication.
+    Post a tweet with optional media and reply.
+
+    Prefers OAuth2 (Bearer token) when a stored token exists for the selected
+    profile; otherwise falls back to OAuth1.
     Returns the raw response object.
     """
     tweet_payload = create_tweet_payload(text=text, media_path=media_path, reply_to=reply_to)
     logger.info(f"Posting tweet with payload: {tweet_payload}")
-    
+
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    access_token = _load_oauth2_access_token()
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+        response = requests.request(
+            method="POST",
+            url="https://api.x.com/2/tweets",
+            json=tweet_payload,
+            headers=headers,
+        )
+
+        if response.status_code == 401:
+            from . import oauth2 as oauth2_module
+            from . import session as session_module
+
+            profile_override = getattr(config_module, "_PROFILE_OVERRIDE", None)
+            profile_name = profile_override or config_module.get_active_profile()
+            if profile_name:
+                loaded = session_module.load_any_oauth2_token(profile_name)
+                if loaded:
+                    user_id, token = loaded
+                    refresh_token = token.get("refresh_token")
+                    client_id = config_module.get_credential("X_OAUTH2_CLIENT_ID")
+                    client_secret = config_module.get_credential("X_OAUTH2_CLIENT_SECRET")
+                    if isinstance(refresh_token, str) and refresh_token.strip() and isinstance(client_id, str) and client_id.strip():
+                        refreshed = oauth2_module.refresh_access_token(
+                            refresh_token=refresh_token.strip(),
+                            client_id=client_id.strip(),
+                            client_secret=client_secret.strip() if isinstance(client_secret, str) and client_secret.strip() else None,
+                        )
+                        merged = dict(token)
+                        merged.update(refreshed)
+                        if "refresh_token" not in merged and isinstance(refresh_token, str):
+                            merged["refresh_token"] = refresh_token
+                        session_module.save_token(user_id=user_id, token=merged, profile=profile_name)
+
+                        new_access = merged.get("access_token")
+                        if isinstance(new_access, str) and new_access.strip():
+                            headers["Authorization"] = f"Bearer {new_access.strip()}"
+                            return requests.request(
+                                method="POST",
+                                url="https://api.x.com/2/tweets",
+                                json=tweet_payload,
+                                headers=headers,
+                            )
+
+        return response
+
     auth = create_oauth1_auth()
     return requests.request(
         method="POST",
         url="https://api.x.com/2/tweets",
         json=tweet_payload,
         auth=auth,
-        headers={
-            "Content-Type": "application/json",
-        },
+        headers=headers,
     )
 
 def post_tweet(text: str, media_path: str | None = None, reply_to: str | None = None) -> tuple[bool, str]:

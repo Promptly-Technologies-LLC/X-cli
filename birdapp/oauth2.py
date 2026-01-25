@@ -18,6 +18,7 @@ OAUTH2_AUTHORIZE_URL = "https://x.com/i/oauth2/authorize"
 OAUTH2_TOKEN_URL = "https://api.x.com/2/oauth2/token"
 OAUTH2_ME_URL = "https://api.x.com/2/users/me"
 DEFAULT_FIXTURES_DIR = os.path.join("tests", "fixtures")
+DEFAULT_OAUTH2_SCOPES = "tweet.read tweet.write users.read offline.access"
 
 
 def wait_for_oauth_callback(redirect_uri: str, timeout_seconds: int = 180) -> dict[str, Any]:
@@ -210,7 +211,7 @@ def oauth2_login_flow(record_fixtures: bool = False, profile: str | None = None)
     if not client_id or not redirect_uri:
         raise RuntimeError("Missing X_OAUTH2_CLIENT_ID or X_OAUTH2_REDIRECT_URI")
 
-    scopes = (raw_scopes or "tweet.read users.read offline.access").split()
+    scopes = (raw_scopes or DEFAULT_OAUTH2_SCOPES).split()
     state = secrets.token_urlsafe(16)
     code_verifier, code_challenge = create_pkce_pair()
 

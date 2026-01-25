@@ -30,6 +30,7 @@ def main() -> None:
     from birdapp.oauth2 import (
         build_authorize_url,
         create_pkce_pair,
+        DEFAULT_OAUTH2_SCOPES,
         exchange_code_for_token,
         get_user_me,
         wait_for_oauth_callback,
@@ -46,7 +47,7 @@ def main() -> None:
 
     client_id = os.getenv("X_OAUTH2_CLIENT_ID")
     redirect_uri = os.getenv("X_OAUTH2_REDIRECT_URI")
-    scopes = os.getenv("X_OAUTH2_SCOPES", "tweet.read users.read offline.access").split()
+    scopes = os.getenv("X_OAUTH2_SCOPES", DEFAULT_OAUTH2_SCOPES).split()
     client_secret = os.getenv("X_OAUTH2_CLIENT_SECRET")
 
     if not client_id or not redirect_uri:

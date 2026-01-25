@@ -19,6 +19,7 @@ from .config import (
     show_embedding_config,
 )
 from .oauth2 import oauth2_login_flow, oauth2_whoami
+from .session import has_oauth2_token
 from .storage.embeddings import (
     EmbeddingsUnavailable,
     embed_tweets_in_db,
@@ -345,6 +346,13 @@ def main() -> None:
         if not text and not args.media:
             print("Error: Cannot post empty tweet without media")
             exit(1)
+
+        if _has_oauth2_config() and not has_oauth2_token(profile=args.profile) and not _has_oauth1_credentials():
+            profile_hint = f"--profile {args.profile} " if args.profile else ""
+            print(
+                "No OAuth2 login token is stored for this profile. "
+                f"Run `birdapp {profile_hint}auth login` to complete OAuth2 login."
+            )
         
         # Post the tweet
         try:
