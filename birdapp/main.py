@@ -91,40 +91,86 @@ def _format_search_timestamp(value: datetime | None) -> str:
 
 def main() -> None:
     """Main CLI entry point"""
-    parser = argparse.ArgumentParser(description="X CLI - Post tweets from the command line")
-    parser.add_argument("--profile", type=str, help="Use a specific profile for this command")
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument(
+        "--profile",
+        type=str,
+        default=argparse.SUPPRESS,
+        help="Use a specific profile for this command",
+    )
+
+    parser = argparse.ArgumentParser(
+        description="X CLI - Post tweets from the command line",
+        parents=[common_parser],
+    )
     subparsers = parser.add_subparsers(dest="command", help="Available commands", required=True)
     # Profile subcommand
-    profile_parser = subparsers.add_parser("profile", help="Manage profiles")
+    profile_parser = subparsers.add_parser(
+        "profile",
+        help="Manage profiles",
+        parents=[common_parser],
+    )
     profile_subparsers = profile_parser.add_subparsers(dest="profile_command", required=True)
-    profile_use_parser = profile_subparsers.add_parser("use", help="Set active profile")
+    profile_use_parser = profile_subparsers.add_parser(
+        "use",
+        help="Set active profile",
+        parents=[common_parser],
+    )
     profile_use_parser.add_argument("username", type=str, help="Profile username to activate")
-    profile_subparsers.add_parser("list", help="List available profiles")
-    profile_show_parser = profile_subparsers.add_parser("show", help="Show profile configuration")
+    profile_subparsers.add_parser(
+        "list",
+        help="List available profiles",
+        parents=[common_parser],
+    )
+    profile_show_parser = profile_subparsers.add_parser(
+        "show",
+        help="Show profile configuration",
+        parents=[common_parser],
+    )
     profile_show_parser.add_argument("username", nargs="?", help="Profile username")
 
 
     # Auth subcommand
-    auth_parser = subparsers.add_parser("auth", help="Authentication and credential management")
+    auth_parser = subparsers.add_parser(
+        "auth",
+        help="Authentication and credential management",
+        parents=[common_parser],
+    )
     auth_subparsers = auth_parser.add_subparsers(dest="auth_command", required=True)
 
-    auth_config_parser = auth_subparsers.add_parser("config", help="Configure authentication")
+    auth_config_parser = auth_subparsers.add_parser(
+        "config",
+        help="Configure authentication",
+        parents=[common_parser],
+    )
     auth_config_parser.add_argument("--show", action="store_true", help="Show current configuration")
     auth_flow_group = auth_config_parser.add_mutually_exclusive_group()
     auth_flow_group.add_argument("--oauth1", action="store_true", help="Configure OAuth1 credentials")
     auth_flow_group.add_argument("--oauth2", action="store_true", help="Configure OAuth2 credentials")
 
-    auth_login_parser = auth_subparsers.add_parser("login", help="Authenticate via OAuth2")
+    auth_login_parser = auth_subparsers.add_parser(
+        "login",
+        help="Authenticate via OAuth2",
+        parents=[common_parser],
+    )
     auth_login_parser.add_argument("--json", action="store_true", help="Output raw JSON response")
 
-    auth_whoami_parser = auth_subparsers.add_parser("whoami", help="Show authenticated user info")
+    auth_whoami_parser = auth_subparsers.add_parser(
+        "whoami",
+        help="Show authenticated user info",
+        parents=[common_parser],
+    )
     auth_whoami_parser.add_argument(
         "--user-id", dest="user_id", type=str, help="Use stored token for user id"
     )
     auth_whoami_parser.add_argument("--json", action="store_true", help="Output raw JSON response")
 
     # Tweet subcommand
-    tweet_parser = subparsers.add_parser('tweet', help='Post a tweet')
+    tweet_parser = subparsers.add_parser(
+        "tweet",
+        help="Post a tweet",
+        parents=[common_parser],
+    )
     tweet_parser.add_argument(
         "text",
         nargs="?",
@@ -142,14 +188,22 @@ def main() -> None:
     tweet_parser.add_argument('--reply-to', dest='reply_to', type=str, help='Tweet ID or URL to reply to (optional)')
     
     # Get tweets subcommand
-    get_parser = subparsers.add_parser('get', help='Get tweets by ID')
+    get_parser = subparsers.add_parser(
+        "get",
+        help="Get tweets by ID",
+        parents=[common_parser],
+    )
     get_parser.add_argument('ids', nargs='+', help='Tweet IDs to retrieve (space separated)')
     get_parser.add_argument('--json', action='store_true', help='Output raw JSON response')
     get_parser.add_argument('--format', choices=['simple', 'detailed'], default='simple', 
                            help='Output format (simple or detailed)')
     
     # User lookup subcommand
-    user_parser = subparsers.add_parser('user', help='Look up user information')
+    user_parser = subparsers.add_parser(
+        "user",
+        help="Look up user information",
+        parents=[common_parser],
+    )
     user_parser.add_argument('identifiers', nargs='+', 
                             help='User IDs or usernames to look up (usernames can have @ prefix)')
     user_parser.add_argument('--by-id', action='store_true', 
@@ -169,8 +223,9 @@ def main() -> None:
 
     # Import archive subcommand
     import_parser = subparsers.add_parser(
-        'import-archive',
-        help='Import a Twitter Community Archive into a SQLite database',
+        "import-archive",
+        help="Import a Twitter Community Archive into a SQLite database",
+        parents=[common_parser],
     )
     import_parser.add_argument('--username', type=str, help='Archive username')
     import_parser.add_argument('--url', type=str, help='Full archive.json URL')
@@ -221,12 +276,14 @@ def main() -> None:
     embed_parser = subparsers.add_parser(
         "embed",
         help="Generate embeddings for stored tweets",
+        parents=[common_parser],
     )
     embed_subparsers = embed_parser.add_subparsers(dest="embed_command")
     embed_subparsers.required = False
     embed_config_parser = embed_subparsers.add_parser(
         "config",
         help="Configure embedding credentials",
+        parents=[common_parser],
     )
     embed_config_parser.add_argument(
         "--api-key",
@@ -264,8 +321,9 @@ def main() -> None:
     
     # Parse arguments
     args = parser.parse_args()
-    if args.profile:
-        set_profile_override(args.profile)
+    profile: str | None = getattr(args, "profile", None)
+    if profile:
+        set_profile_override(profile)
     else:
         clear_profile_override()
     
@@ -296,17 +354,17 @@ def main() -> None:
     if args.command == "auth":
         if args.auth_command == "config":
             if args.show:
-                show_config(profile=args.profile)
+                show_config(profile=profile)
             elif args.oauth1:
-                prompt_for_credentials(profile=args.profile)
+                prompt_for_credentials(profile=profile)
             elif args.oauth2:
-                prompt_for_oauth2_credentials(profile=args.profile)
+                prompt_for_oauth2_credentials(profile=profile)
             else:
                 flow = _prompt_for_auth_flow()
                 if flow == "oauth1":
-                    prompt_for_credentials(profile=args.profile)
+                    prompt_for_credentials(profile=profile)
                 else:
-                    prompt_for_oauth2_credentials(profile=args.profile)
+                    prompt_for_oauth2_credentials(profile=profile)
         elif args.auth_command == "login":
             if not _has_oauth2_config():
                 if _has_oauth1_credentials():
@@ -316,7 +374,7 @@ def main() -> None:
                 return
 
             try:
-                result = oauth2_login_flow(profile=args.profile)
+                result = oauth2_login_flow(profile=profile)
                 if args.json:
                     print(json.dumps(result, indent=2))
                 else:
@@ -325,7 +383,7 @@ def main() -> None:
                 print(f"❌ Error during OAuth2 flow: {str(e)}")
         else:
             try:
-                result = oauth2_whoami(args.user_id, profile=args.profile)
+                result = oauth2_whoami(args.user_id, profile=profile)
                 if args.json:
                     print(json.dumps(result, indent=2))
                 else:
@@ -347,8 +405,8 @@ def main() -> None:
             print("Error: Cannot post empty tweet without media")
             exit(1)
 
-        if _has_oauth2_config() and not has_oauth2_token(profile=args.profile) and not _has_oauth1_credentials():
-            profile_hint = f"--profile {args.profile} " if args.profile else ""
+        if _has_oauth2_config() and not has_oauth2_token(profile=profile) and not _has_oauth1_credentials():
+            profile_hint = f"--profile {profile} " if profile else ""
             print(
                 "No OAuth2 login token is stored for this profile. "
                 f"Run `birdapp {profile_hint}auth login` to complete OAuth2 login."

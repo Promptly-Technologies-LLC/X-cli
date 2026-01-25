@@ -1,11 +1,26 @@
 import sys
 import unittest
+import io
+import contextlib
 from unittest import mock
 
 from birdapp import main as main_module
 
 
 class TestTweetCli(unittest.TestCase):
+    def test_tweet_help_includes_profile_flag(self) -> None:
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", ["birdapp", "tweet", "--help"]),
+            contextlib.redirect_stdout(stdout),
+            self.assertRaises(SystemExit) as exc,
+        ):
+            main_module.main()
+
+        # argparse uses SystemExit(0) on --help
+        self.assertEqual(exc.exception.code, 0)
+        self.assertIn("--profile", stdout.getvalue())
+
     def test_tweet_cli_accepts_positional_text(self) -> None:
         with (
             mock.patch.object(sys, "argv", ["birdapp", "tweet", "hello world"]),
