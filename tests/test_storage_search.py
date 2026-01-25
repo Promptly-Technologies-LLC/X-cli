@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlmodel import Session
 
@@ -61,6 +61,35 @@ def _make_archive(owner_id: str, username: str, tweets: list[dict[str, str]]) ->
 
 
 class TestStorageSearch(unittest.TestCase):
+    def test_search_returns_created_at_datetime_when_present(self) -> None:
+        engine = get_engine("sqlite:///:memory:")
+        init_db(engine)
+        with Session(engine) as session:
+            import_archive_data(
+                _make_archive(
+                    "42",
+                    "alice",
+                    [
+                        {
+                            "id": "111",
+                            "full_text": "hello world",
+                            # Matches Twitter "Download your data" ZIP export format.
+                            "created_at": "Thu Jan 22 21:04:29 +0000 2026",
+                        }
+                    ],
+                ),
+                session,
+            )
+
+            results = search_tweets(session, query="hello")
+
+        self.assertEqual(len(results), 1)
+        self.assertIsNotNone(results[0].created_at)
+        self.assertEqual(
+            results[0].created_at,
+            datetime(2026, 1, 22, 21, 4, 29, tzinfo=timezone.utc),
+        )
+
     def test_search_returns_empty_for_blank_query(self) -> None:
         engine = get_engine("sqlite:///:memory:")
         init_db(engine)
