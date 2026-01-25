@@ -145,6 +145,8 @@ def get_credential(key: str, profile: str | None = None) -> Optional[str]:
             if key in _OAUTH2_APP_KEYS:
                 return oauth2_app.get(key)
             return None
+        if key == "X_OAUTH2_SCOPES":
+            return oauth2_app.get(key)
         profile_value = profiles.get(profile_name, {}).get(key)
         if profile_value:
             return profile_value
@@ -272,17 +274,17 @@ def show_config(profile: str | None = None) -> None:
     print(f"  API Secret: {'*' * len(profile_data.get('X_API_SECRET', '')) if profile_data.get('X_API_SECRET') else 'Not set'}")
     print(f"  Access Token: {'*' * len(profile_data.get('X_ACCESS_TOKEN', '')) if profile_data.get('X_ACCESS_TOKEN') else 'Not set'}")
     print(f"  Access Token Secret: {'*' * len(profile_data.get('X_ACCESS_TOKEN_SECRET', '')) if profile_data.get('X_ACCESS_TOKEN_SECRET') else 'Not set'}")
-    print("  OAuth2 Client ID: " + ("Set" if profile_data.get("X_OAUTH2_CLIENT_ID") else "Not set"))
-    print("  OAuth2 Client Secret: " + ("Set" if profile_data.get("X_OAUTH2_CLIENT_SECRET") else "Not set"))
-    print("  OAuth2 Redirect URI: " + (profile_data.get("X_OAUTH2_REDIRECT_URI") or "Not set"))
-    print("  OAuth2 Scopes: " + (profile_data.get("X_OAUTH2_SCOPES") or "Not set"))
     oauth2_app = _get_oauth2_app_config(config)
     if oauth2_app:
+        from .oauth2 import DEFAULT_OAUTH2_SCOPES
+
+        raw_scopes = oauth2_app.get("X_OAUTH2_SCOPES")
+        scopes_display = raw_scopes or f"Default ({DEFAULT_OAUTH2_SCOPES})"
         print("OAuth2 App Configuration (shared):")
         print("  OAuth2 Client ID: " + ("Set" if oauth2_app.get("X_OAUTH2_CLIENT_ID") else "Not set"))
         print("  OAuth2 Client Secret: " + ("Set" if oauth2_app.get("X_OAUTH2_CLIENT_SECRET") else "Not set"))
         print("  OAuth2 Redirect URI: " + (oauth2_app.get("X_OAUTH2_REDIRECT_URI") or "Not set"))
-        print("  OAuth2 Scopes: " + (oauth2_app.get("X_OAUTH2_SCOPES") or "Not set"))
+        print("  OAuth2 Scopes: " + scopes_display)
 
 def prompt_for_oauth2_credentials(profile: str | None = None) -> None:
     """Prompt user for OAuth2 credentials and save them."""
