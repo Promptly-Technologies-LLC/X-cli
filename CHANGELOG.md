@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.4.2 (2026-01-25)
+
+### Bug Fixes
+
+- Auto-refresh expired OAuth2 tokens and add tweet.write as default scope
+  ([`cd720bf`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/cd720bf66decc3f2c2daf43ca429870f789f898e))
+
+### Documentation
+
+- Make sure profile flag shows up in help
+  ([`063b822`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/063b822d35df0c976fa6783a9f336d0686b039c2))
+
+
 ## v1.4.1 (2026-01-25)
 
 ### Bug Fixes
