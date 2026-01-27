@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.0.0 (2026-01-27)
+
+### Bug Fixes
+
+- Use a new canonical location for session storage
+  ([`fd22aef`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/fd22aef68c6a9356c2b223d7f2ffd8cffff1a06d))
+
+
 ## v1.4.3 (2026-01-25)
 
 ### Bug Fixes
