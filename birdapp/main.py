@@ -411,6 +411,7 @@ def main() -> None:
                 "No OAuth2 login token is stored for this profile. "
                 f"Run `birdapp {profile_hint}auth login` to complete OAuth2 login."
             )
+            return
         
         # Post the tweet
         try:
