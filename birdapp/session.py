@@ -1,15 +1,55 @@
 import json
 import os
+import shutil
+from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
+
+import platformdirs
 from requests_oauthlib import OAuth2Session
 from .auth import create_oauth2_session
 from .config import get_active_profile
 
 def get_sessions_dir() -> str:
     """Get or create the sessions directory."""
-    sessions_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sessions")
-    os.makedirs(sessions_dir, exist_ok=True)
+    override = os.getenv("BIRDAPP_SESSIONS_DIR")
+    if override and override.strip():
+        sessions_dir = override.strip()
+    else:
+        sessions_dir = os.path.join(platformdirs.user_state_dir("birdapp"), "sessions")
+
+    Path(sessions_dir).mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(sessions_dir, 0o700)
+    except OSError:
+        pass
+
+    _migrate_legacy_tokens(sessions_dir)
     return sessions_dir
+
+
+def _migrate_legacy_tokens(sessions_dir: str) -> None:
+    """
+    Migrate tokens from older locations into the current sessions directory.
+
+    Historically, tokens were stored relative to the import location of the
+    `birdapp` package, which caused tokens to "disappear" depending on how the
+    CLI was installed or where it was executed from.
+    """
+    tokens_path = os.path.join(sessions_dir, "tokens.json")
+    if os.path.exists(tokens_path):
+        return
+
+    legacy_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sessions")
+    legacy_tokens_path = os.path.join(legacy_dir, "tokens.json")
+    if not os.path.exists(legacy_tokens_path):
+        return
+
+    Path(sessions_dir).mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.copy2(legacy_tokens_path, tokens_path)
+        os.chmod(tokens_path, 0o600)
+    except OSError:
+        return
 
 def _resolve_profile(profile: str | None, tokens: Dict[str, Any]) -> Optional[str]:
     if profile:
@@ -54,6 +94,10 @@ def save_token(user_id: str, token: Mapping[str, Any], profile: str | None = Non
     # Save updated tokens
     with open(tokens_path, "w") as f:
         json.dump(tokens, f)
+    try:
+        os.chmod(tokens_path, 0o600)
+    except OSError:
+        pass
 
 def load_token(user_id: str, profile: str | None = None) -> Optional[Dict[str, Any]]:
     """Load a user's token from the tokens file."""
