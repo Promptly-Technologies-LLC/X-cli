@@ -89,6 +89,10 @@ def _format_search_timestamp(value: datetime | None) -> str:
     )
 
 
+def _format_tweet_url(username: str, tweet_id: str) -> str:
+    return f"https://x.com/{username}/status/{tweet_id}"
+
+
 def main() -> None:
     """Main CLI entry point"""
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -266,6 +270,11 @@ def main() -> None:
     search_parser.add_argument("--until", type=str, help="Filter by date (YYYY-MM-DD)")
     search_parser.add_argument("--limit", type=int, default=20, help="Max results")
     search_parser.add_argument("--json", action="store_true", help="Output raw JSON result")
+    search_parser.add_argument(
+        "--include-url",
+        action="store_true",
+        help="Include tweet URLs in the output",
+    )
     search_parser.add_argument(
         "--semantic",
         action="store_true",
@@ -573,6 +582,9 @@ def main() -> None:
                             f"({result.owner_display_name})"
                         )
                         print(f"Created: {created_at}")
+                        if args.include_url:
+                            url = _format_tweet_url(result.owner_username, result.tweet_id)
+                            print(f"URL: {url}")
                         print(f"Text: {result.full_text}")
                         print("-" * 50)
             else:
@@ -599,6 +611,9 @@ def main() -> None:
                             f"({result.owner.account_display_name})"
                         )
                         print(f"Created: {created_at}")
+                        if args.include_url:
+                            url = _format_tweet_url(result.owner.username, result.tweet_id)
+                            print(f"URL: {url}")
                         print(f"Text: {result.full_text}")
                         print("-" * 50)
         except Exception as e:
