@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 
 from birdapp.config import get_credential, get_embedding_credential
 from birdapp.storage.db import get_default_db_url, get_engine, get_session, init_db
+from birdapp.storage.dates import coerce_datetime, format_timestamp
 from birdapp.storage.models import Account, Tweet
 
 _DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
@@ -40,7 +41,7 @@ class SemanticSearchResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "tweet_id": self.tweet_id,
-            "created_at": _format_timestamp(self.created_at),
+            "created_at": format_timestamp(self.created_at),
             "full_text": self.full_text,
             "tweet_kind": self.tweet_kind,
             "owner": {
@@ -219,7 +220,7 @@ def semantic_search_tweets(
     rows = session.exec(statement).mappings().all()
     results: list[SemanticSearchResult] = []
     for row in rows:
-        created_at = _coerce_datetime(row["created_at"])
+        created_at = coerce_datetime(row["created_at"])
         results.append(
             SemanticSearchResult(
                 tweet_id=row["tweet_id"],
@@ -319,26 +320,6 @@ def _date_to_utc_datetime(value: Optional[date], *, end: bool) -> Optional[datet
         return None
     bound = time.max if end else time.min
     return datetime.combine(value, bound, tzinfo=timezone.utc)
-
-
-def _coerce_datetime(value: Any) -> Optional[datetime]:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
-    return None
-
-
-def _format_timestamp(value: Optional[datetime]) -> Optional[str]:
-    if value is None:
-        return None
-    return (
-        value.astimezone(timezone.utc)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
 
 
 def _chunked(items: Sequence[Any], size: int) -> Iterable[Sequence[Any]]:

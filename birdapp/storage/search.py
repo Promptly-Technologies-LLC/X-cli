@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from .db import get_default_db_url, get_engine, get_session, init_db
+from .dates import coerce_datetime, format_timestamp
 from .models import Account
 
 _TWEET_FTS_DDL = """
@@ -39,7 +40,7 @@ class SearchResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "tweet_id": self.tweet_id,
-            "created_at": _format_timestamp(self.created_at),
+            "created_at": format_timestamp(self.created_at),
             "full_text": self.full_text,
             "tweet_kind": self.tweet_kind,
             "owner": {
@@ -129,7 +130,7 @@ def search_tweets(
 
     results: list[SearchResult] = []
     for row in rows:
-        created_at = _coerce_datetime(row["created_at"])
+        created_at = coerce_datetime(row["created_at"])
         results.append(
             SearchResult(
                 tweet_id=row["tweet_id"],
@@ -198,36 +199,3 @@ def _date_to_utc_datetime(value: Optional[date], *, end: bool) -> Optional[datet
         return None
     bound = time.max if end else time.min
     return datetime.combine(value, bound, tzinfo=timezone.utc)
-
-
-def _coerce_datetime(value: Any) -> Optional[datetime]:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
-    if isinstance(value, str):
-        candidate = value.strip()
-        if not candidate:
-            return None
-        # When selecting `t.created_at` via raw SQL against SQLite, the driver
-        # often returns a string like "2026-01-22 21:04:29.000000".
-        try:
-            parsed = datetime.fromisoformat(candidate)
-        except ValueError:
-            return None
-        if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
-    return None
-
-
-def _format_timestamp(value: Optional[datetime]) -> Optional[str]:
-    if value is None:
-        return None
-    return (
-        value.astimezone(timezone.utc)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
