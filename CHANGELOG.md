@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.1.0 (2026-01-28)
+
+### Bug Fixes
+
+- Shared date formatter for search results
+  ([`1c15261`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/1c15261949482bf4617d2aa4c70785c2c5db0afd))
+
+### Features
+
+- Optionally include tweet URL in search results
+  ([`9fb33e7`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/9fb33e7e94663ef8c3de42c16f6045285249d76e))
+
+
 ## v2.0.0 (2026-01-27)
 
 ### Bug Fixes
