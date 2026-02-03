@@ -1,4 +1,5 @@
 import logging
+import os
 import requests
 from .media import create_media_payload
 from .auth import create_oauth1_auth
@@ -6,6 +7,29 @@ from . import config as config_module
 from .utils import extract_tweet_id
 
 logger = logging.getLogger(__name__)
+
+def _get_env_or_config(key: str) -> str | None:
+    return os.getenv(key) or config_module.get_credential(key)
+
+def _has_oauth2_app_config() -> bool:
+    # OAuth2 app keys are shared (not per-profile), but we still use
+    # get_credential so profile selection logic remains consistent.
+    return bool(_get_env_or_config("X_OAUTH2_CLIENT_ID") and _get_env_or_config("X_OAUTH2_REDIRECT_URI"))
+
+def _has_oauth1_credentials() -> bool:
+    return all(
+        _get_env_or_config(key)
+        for key in (
+            "X_API_KEY",
+            "X_API_SECRET",
+            "X_ACCESS_TOKEN",
+            "X_ACCESS_TOKEN_SECRET",
+        )
+    )
+
+def _selected_profile_name() -> str | None:
+    profile_override = getattr(config_module, "_PROFILE_OVERRIDE", None)
+    return profile_override or config_module.get_active_profile()
 
 def create_text_payload(text: str) -> dict[str, str]:
     return {"text": text}
@@ -45,8 +69,7 @@ def _load_oauth2_access_token() -> str | None:
     Profile selection respects `birdapp --profile ...` because `get_credential`
     consults the profile override.
     """
-    profile_override = getattr(config_module, "_PROFILE_OVERRIDE", None)
-    profile_name = profile_override or config_module.get_active_profile()
+    profile_name = _selected_profile_name()
     if not profile_name:
         return None
 
@@ -137,15 +160,14 @@ def submit_tweet(text: str, media_path: str | None = None, reply_to: str | None 
             from . import oauth2 as oauth2_module
             from . import session as session_module
 
-            profile_override = getattr(config_module, "_PROFILE_OVERRIDE", None)
-            profile_name = profile_override or config_module.get_active_profile()
+            profile_name = _selected_profile_name()
             if profile_name:
                 loaded = session_module.load_any_oauth2_token(profile_name)
                 if loaded:
                     user_id, token = loaded
                     refresh_token = token.get("refresh_token")
-                    client_id = config_module.get_credential("X_OAUTH2_CLIENT_ID")
-                    client_secret = config_module.get_credential("X_OAUTH2_CLIENT_SECRET")
+                    client_id = _get_env_or_config("X_OAUTH2_CLIENT_ID")
+                    client_secret = _get_env_or_config("X_OAUTH2_CLIENT_SECRET")
                     if isinstance(refresh_token, str) and refresh_token.strip() and isinstance(client_id, str) and client_id.strip():
                         refreshed = oauth2_module.refresh_access_token(
                             refresh_token=refresh_token.strip(),
@@ -168,7 +190,24 @@ def submit_tweet(text: str, media_path: str | None = None, reply_to: str | None 
                                 headers=headers,
                             )
 
+            profile_hint = f"--profile {profile_name} " if profile_name else ""
+            raise RuntimeError(
+                "OAuth2 token appears expired or invalid for this profile. "
+                f"Run `birdapp {profile_hint}auth login` to re-authenticate."
+            )
+
         return response
+
+    # No OAuth2 access token is available for this profile. If OAuth2 is
+    # configured, prefer guiding the user through OAuth2 login instead of
+    # falling back to OAuth1 and prompting for OAuth1 credentials.
+    if _has_oauth2_app_config() and not _has_oauth1_credentials():
+        profile_name = _selected_profile_name()
+        profile_hint = f"--profile {profile_name} " if profile_name else ""
+        raise RuntimeError(
+            "No OAuth2 login token is stored for this profile. "
+            f"Run `birdapp {profile_hint}auth login` to complete OAuth2 login."
+        )
 
     auth = create_oauth1_auth()
     return requests.request(
