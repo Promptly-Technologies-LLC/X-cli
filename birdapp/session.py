@@ -141,7 +141,15 @@ def has_oauth2_token(profile: str | None = None) -> bool:
     tokens = _load_tokens(tokens_path)
     profiles = tokens.get("profiles")
     if not isinstance(profiles, dict):
-        return False
+        # Legacy format: { "<user_id>": { "access_token": "...", ... }, ... }
+        # Without profile scoping, only treat it as usable when exactly one
+        # token entry exists with a non-empty access_token. This avoids
+        # accidentally mixing tokens across multiple profiles.
+        usable = 0
+        for token in tokens.values():
+            if isinstance(token, dict) and isinstance(token.get("access_token"), str) and token["access_token"].strip():
+                usable += 1
+        return usable == 1
 
     profile_name = _resolve_profile(profile, tokens)
     if not profile_name:
@@ -168,6 +176,19 @@ def load_any_oauth2_token(profile: str) -> tuple[str, Dict[str, Any]] | None:
     tokens = _load_tokens(tokens_path)
     profiles = tokens.get("profiles")
     if not isinstance(profiles, dict):
+        # Legacy format: tokens are not profile-scoped. Only treat it as
+        # loadable when there is exactly one usable token.
+        usable: list[tuple[str, Dict[str, Any]]] = []
+        for user_id, token in tokens.items():
+            if (
+                isinstance(user_id, str)
+                and isinstance(token, dict)
+                and isinstance(token.get("access_token"), str)
+                and token["access_token"].strip()
+            ):
+                usable.append((user_id, token))
+        if len(usable) == 1:
+            return usable[0]
         return None
 
     profile_tokens = profiles.get(profile)
