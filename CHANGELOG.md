@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.1.1 (2026-02-03)
+
+### Bug Fixes
+
+- Ensure console output for an expired OAuth2 token never falls back to OAuth1 instructions
+  ([`a23449d`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/a23449d12bdb8fe4ff36f293e26a1fd430e4249e))
+
+
 ## v2.1.0 (2026-01-28)
 
 ### Bug Fixes
