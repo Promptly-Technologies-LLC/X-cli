@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.1.2 (2026-03-13)
+
+### Bug Fixes
+
+- Add actionable error message for 503 API responses
+  ([`86f4afd`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/86f4afd1dbdde772870eea0942898c9d90c96682))
+
+
 ## v2.1.1 (2026-02-03)
 
 ### Bug Fixes
