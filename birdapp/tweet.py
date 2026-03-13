@@ -108,6 +108,14 @@ def handle_tweet_response(response: requests.Response) -> tuple[bool, str]:
             status_code = response.status_code
             if status_code == 429:
                 error_msg = "Rate limit exceeded. Please wait a few minutes and try again."
+            elif status_code == 503:
+                error_msg = (
+                    "Error (503): Service Unavailable. "
+                    "The X API is not responding. This may indicate that your API plan "
+                    "does not support this endpoint or that the API is experiencing an outage. "
+                    "Check your plan at https://developer.x.com/en/portal/products."
+                )
+                logger.error("API returned 503 Service Unavailable")
             else:
                 detail = error_details.get('detail') or error_details.get('title') or response.reason
                 error_msg = f"Error ({status_code}): {detail}"
