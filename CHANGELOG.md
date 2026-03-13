@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v2.1.3 (2026-03-13)
+
+### Bug Fixes
+
+- Error message for OAuth2 no longer references OAuth1
+  ([`07ea49e`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/07ea49e90178fc7b5300a63a4e8d42fc1590c3b4))
+
+### Build System
+
+- Regenerate uv.lock during release version bump
+  ([`a954c93`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/a954c93b3aea63c3eb738f5e96384531c2a04800))
+
+### Documentation
+
+- Update README install command
+  ([`fa5439e`](https://github.com/Promptly-Technologies-LLC/birdapp/commit/fa5439e821308081e401db7d5724b7f0d0be05e4))
+
+
 ## v2.1.2 (2026-03-13)
 
 ### Bug Fixes
