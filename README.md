@@ -23,7 +23,7 @@ Consult the [uv installation docs](https://astral.sh/uv/) for more detailed inst
 You can install the CLI tool globally using uv:
 
 ```bash
-uv tool install -U git+https://github.com/Promptly-Technologies-LLC/birdapp.git
+uv tool install -U birdapp
 ```
 
 After installation, you can use:
